@@ -112,8 +112,8 @@ final class LinkService {
 			try {
 				$link = $this->links->insert($link);
 				$this->tags->replaceForLink($link->getId(), $tagIds);
-				$this->db->commit();
 				$this->audit->record('created', $ownerUid, $link);
+				$this->db->commit();
 				$this->events->dispatchTyped(new LinkCreatedEvent($link));
 				return $this->serialize($link);
 			} catch (Exception $e) {
@@ -153,6 +153,7 @@ final class LinkService {
 		$event = new BeforeLinkUpdatedEvent($link, $data);
 		$this->events->dispatchTyped($event);
 		$data = $event->data;
+		$before = ['slug' => $link->getSlug(), 'target' => $link->getTargetHash(), 'active' => $link->getIsActive(), 'folderId' => $link->getFolderId()];
 		$expectedVersion = (int)($data['version'] ?? 0);
 		if ($expectedVersion !== $link->getEntityVersion()) {
 			throw new ConflictException('Link changed since it was loaded');
@@ -185,12 +186,27 @@ final class LinkService {
 			if (array_key_exists('tagIds', $data)) {
 				$this->tags->replaceForLink($id, $this->validatedTagIds((array)$data['tagIds'], $ownerUid));
 			}
+			$this->audit->record('updated', $ownerUid, $link);
+			if ($before['slug'] !== $link->getSlug()) {
+				$this->audit->record('alias_changed', $ownerUid, $link, ['oldSlug' => $before['slug'], 'newSlug' => $link->getSlug()]);
+			}
+			if ($before['target'] !== $link->getTargetHash()) {
+				$this->audit->record('target_changed', $ownerUid, $link);
+			}
+			if ($before['active'] !== $link->getIsActive()) {
+				$this->audit->record($link->getIsActive() ? 'activated' : 'deactivated', $ownerUid, $link);
+			}
+			if ($before['folderId'] !== $link->getFolderId()) {
+				$this->audit->record('moved', $ownerUid, $link, ['folderId' => $link->getFolderId()]);
+			}
+			if (array_key_exists('tagIds', $data)) {
+				$this->audit->record('tags_changed', $ownerUid, $link);
+			}
 			$this->db->commit();
 		} catch (\Throwable $e) {
 			$this->db->rollBack();
 			throw $e;
 		}
-		$this->audit->record('updated', $ownerUid, $link);
 		$updated = $this->find($id);
 		$this->events->dispatchTyped(new LinkUpdatedEvent($updated));
 		return $this->serialize($updated);
@@ -207,16 +223,23 @@ final class LinkService {
 			try {
 				$this->links->purgeRelations($id);
 				$this->links->delete($link);
+				$this->audit->record('permanently_deleted', $link->getOwnerUid(), null, ['linkId' => $id, 'slug' => $link->getSlug()]);
 				$this->db->commit();
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
 				throw $e;
 			}
-			$this->audit->record('permanently_deleted', $link->getOwnerUid(), null, ['linkId' => $id, 'slug' => $link->getSlug()]);
 			return;
 		}
-		$this->links->softDelete($link, $this->time->getTime());
-		$this->audit->record('deleted', $link->getOwnerUid(), $link);
+		$this->db->beginTransaction();
+		try {
+			$this->links->softDelete($link, $this->time->getTime());
+			$this->audit->record('deleted', $link->getOwnerUid(), $link);
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
 	}
 
 	/** @return array<string, mixed> */
@@ -226,8 +249,15 @@ final class LinkService {
 		$link->setDeletedAt(null);
 		$link->setUpdatedAt($this->time->getTime());
 		$link->setEntityVersion($link->getEntityVersion() + 1);
-		$this->links->update($link);
-		$this->audit->record('restored', $link->getOwnerUid(), $link);
+		$this->db->beginTransaction();
+		try {
+			$this->links->update($link);
+			$this->audit->record('restored', $link->getOwnerUid(), $link);
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
 		return $this->serialize($link);
 	}
 
@@ -245,7 +275,7 @@ final class LinkService {
 
 	/** @param list<int> $ids @param array<string,mixed> $changes @return array{updated:int,errors:list<array{id:int,error:string}>} */
 	public function bulk(array $ids, array $changes): array {
-		$allowed = ['folderId', 'tagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'action'];
+		$allowed = ['folderId', 'tagIds', 'addTagIds', 'removeTagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'action'];
 		$unexpected = array_diff(array_keys($changes), $allowed);
 		if ($unexpected !== []) {
 			throw new ValidationException('Unexpected bulk fields', array_fill_keys($unexpected, 'unexpected'));
@@ -266,6 +296,13 @@ final class LinkService {
 				} elseif ($action === 'update') {
 					$update = $changes;
 					unset($update['action']);
+					if (isset($update['addTagIds']) || isset($update['removeTagIds'])) {
+						$current = array_map(static fn ($tag): int => $tag->getId(), $this->tags->findForLink($id));
+						$current = array_values(array_unique(array_merge($current, array_map('intval', (array)($update['addTagIds'] ?? [])))));
+						$current = array_values(array_diff($current, array_map('intval', (array)($update['removeTagIds'] ?? []))));
+						$update['tagIds'] = $current;
+					}
+					unset($update['addTagIds'], $update['removeTagIds']);
 					$this->update($id, array_merge($update, ['version' => $link->getEntityVersion()]));
 				} else {
 					throw new ValidationException('Invalid bulk action', ['action' => 'invalid']);
@@ -336,7 +373,8 @@ final class LinkService {
 		}
 		if (array_key_exists('redirectStatus', $data)) {
 			$status = (int)$data['redirectStatus'];
-			if (!in_array($status, self::REDIRECT_STATUSES, true)) {
+			$allowedStatuses = array_map('intval', $this->settings->array('redirect_statuses', ['301', '302', '307', '308']));
+			if (!in_array($status, self::REDIRECT_STATUSES, true) || !in_array($status, $allowedStatuses, true)) {
 				throw new ValidationException('Invalid redirect status', ['redirectStatus' => 'invalid']);
 			}
 			$link->setRedirectStatus($status);
@@ -350,7 +388,16 @@ final class LinkService {
 		}
 		if (array_key_exists('password', $data)) {
 			$password = (string)$data['password'];
+			if ($password !== '' && (strlen($password) < 8 || strlen($password) > 1024)) {
+				throw new ValidationException('Password must contain between 8 and 1024 bytes', ['password' => 'invalid']);
+			}
 			$link->setPasswordHash($password === '' ? null : password_hash($password, PASSWORD_DEFAULT));
+		}
+		if ($link->getAccessMode() === AccessMode::Password->value && $link->getPasswordHash() === null) {
+			throw new ValidationException('Password protection requires a password', ['password' => 'required']);
+		}
+		if ($link->getAccessMode() !== AccessMode::Password->value) {
+			$link->setPasswordHash(null);
 		}
 		foreach (['startsAt' => 'setStartsAt', 'expiresAt' => 'setExpiresAt', 'clickLimit' => 'setClickLimit'] as $key => $setter) {
 			if (array_key_exists($key, $data)) {
@@ -383,6 +430,8 @@ final class LinkService {
 	private function serialize(ShortLink $link): array {
 		$tags = array_map(static fn ($tag): array => $tag->toArray(), $this->tags->findForLink($link->getId()));
 		$result = $link->toArray($this->linkUrls->forSlug($link->getSlug()), $tags);
+		$result['canEdit'] = $this->policy->canEdit($link);
+		$result['canShare'] = $this->policy->canShare($link);
 		if ($link->getOwnerUid() !== $this->policy->currentUid() && !$this->policy->canManageAll()) {
 			$result['folderId'] = null;
 		}

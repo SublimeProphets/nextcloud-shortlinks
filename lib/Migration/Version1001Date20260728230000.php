@@ -18,7 +18,7 @@ final class Version1001Date20260728230000 extends SimpleMigrationStep {
 	}
 
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
-		foreach (['base36', 'base62'] as $name) {
+		foreach (['sequential'] as $name) {
 			$select = $this->db->getQueryBuilder();
 			$select->select($select->func()->count('counter_name', 'count'))
 				->from('shortlinks_counters')

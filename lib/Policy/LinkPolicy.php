@@ -66,6 +66,15 @@ final class LinkPolicy {
 			|| $this->permissions->permissionFor($link->getId(), $uid, $this->currentGroupIds()) === 'edit';
 	}
 
+	public function canShare(ShortLink $link): bool {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			return false;
+		}
+		return $link->getOwnerUid() === $user->getUID()
+			|| ($this->settings->bool('admin_manage_all') && $this->isAdmin());
+	}
+
 	public function requireView(ShortLink $link): void {
 		if (!$this->canView($link)) {
 			throw new ForbiddenException();
@@ -74,6 +83,12 @@ final class LinkPolicy {
 
 	public function requireEdit(ShortLink $link): void {
 		if (!$this->canEdit($link)) {
+			throw new ForbiddenException();
+		}
+	}
+
+	public function requireShare(ShortLink $link): void {
+		if (!$this->canShare($link)) {
 			throw new ForbiddenException();
 		}
 	}

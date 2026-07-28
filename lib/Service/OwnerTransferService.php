@@ -13,6 +13,7 @@ final class OwnerTransferService {
 		private readonly IDBConnection $db,
 		private readonly ShortLinkMapper $links,
 		private readonly IUserManager $users,
+		private readonly AuditService $audit,
 	) {
 	}
 
@@ -27,6 +28,7 @@ final class OwnerTransferService {
 				$qb = $this->db->getQueryBuilder();
 				$qb->update($table)->set('owner_uid', $qb->createNamedParameter($toUid))->where($qb->expr()->eq('owner_uid', $qb->createNamedParameter($fromUid)))->executeStatement();
 			}
+			$this->audit->record('owner_changed', $toUid, null, ['fromUid' => $fromUid, 'toUid' => $toUid, 'linkCount' => $count]);
 			$this->db->commit();
 			return $count;
 		} catch (\Throwable $e) {

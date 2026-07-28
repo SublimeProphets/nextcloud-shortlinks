@@ -34,7 +34,7 @@ final class LinksApiController extends AbstractApiOCSController {
 	 * @param null|int $folderId Folder identifier
 	 * @param string $sort Sort field
 	 * @param string $direction Sort direction
-	 * @param int[] $tagIds Tag identifiers
+	 * @param list<int> $tagIds Tag identifiers
 	 * @param string $tagMode Tag matching mode: and or or
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
 	 *

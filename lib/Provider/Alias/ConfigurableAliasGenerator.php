@@ -23,7 +23,7 @@ final class ConfigurableAliasGenerator implements AliasGeneratorInterface {
 		if ($mode === 'random') {
 			return $this->randomAlias($this->settings->int('alias_length'));
 		}
-		$value = $this->nextSequence($mode);
+		$value = $this->nextSequence('sequential');
 		$alphabet = $mode === 'base62' ? self::BASE62 : self::BASE36;
 		return str_pad($this->encode($value, $alphabet), $this->settings->int('alias_min_length'), '0', STR_PAD_LEFT);
 	}

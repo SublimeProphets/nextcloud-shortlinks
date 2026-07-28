@@ -7,11 +7,13 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
-import type { ShortLink } from '../types'
+import type { Folder, ShortLink, Tag } from '../types'
 
-defineProps<{ links: ShortLink[]; loading: boolean; error: string; selected: Set<number> }>()
-const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number]; refresh: []; search: [query: string]; bulk: [changes: Record<string, unknown>] }>()
+defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string }>()
+const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number]; refresh: []; search: [query: string]; bulk: [changes: Record<string, unknown>]; more: [] }>()
 const query = ref('')
+const bulkFolderId = ref<number | null>(null); const bulkTagId = ref<number | null>(null)
+const bookmarklet = ref('')
 /**
  *
  * @param text Value to copy
@@ -22,6 +24,12 @@ async function copy(text: string) { try { await navigator.clipboard.writeText(te
  * @param link Link to move to trash
  */
 async function remove(link: ShortLink) { try { await api.deleteLink(link.id); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function restore(link: ShortLink) { try { await api.restoreLink(link.id); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function removePermanently(link: ShortLink) { if (!window.confirm(t('shortlinks', 'Permanently delete this link?'))) return; try { await api.deleteLink(link.id, true); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function clone(link: ShortLink) { try { await api.cloneLink(link.id); showSuccess(t('shortlinks', 'Link duplicated')); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function exportLinks(format: 'csv' | 'json') { try { const result = await api.exportLinks(format); const url = URL.createObjectURL(new Blob([result.content], { type: result.mimeType })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.filename; anchor.click(); URL.revokeObjectURL(url) } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function importFile(event: Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; try { if (file.size > 5 * 1024 * 1024) throw new Error(t('shortlinks', 'Import files are limited to 5 MiB')); const format = file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv'; const content = await file.text(); const preview = await api.importLinks(format, content, true, 'skip') as { created?: number; errors?: unknown[] }; if (!window.confirm(t('shortlinks', 'The dry run found {count} valid rows. Continue with import?', { count: preview.created ?? 0 }))) return; const result = await api.importLinks(format, content, false, 'skip') as { created?: number }; showSuccess(t('shortlinks', 'Imported {count} links', { count: result.created ?? 0 })); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } finally { input.value = '' } }
+async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmarklet()).code } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 </script>
 
 <template>
@@ -33,6 +41,16 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 				type="search"
 				:label="t('shortlinks', 'Search')"
 				@keyup.enter="emit('search', query)" />
+			<NcButton @click="exportLinks('csv')">
+				{{ t('shortlinks', 'Export CSV') }}
+			</NcButton><NcButton @click="exportLinks('json')">
+				{{ t('shortlinks', 'Export JSON') }}
+			</NcButton><label class="file-button">{{ t('shortlinks', 'Import CSV or JSON') }}<input type="file" accept=".csv,.json,text/csv,application/json" @change="importFile"></label><NcButton @click="loadBookmarklet">
+				{{ t('shortlinks', 'Bookmarklet') }}
+			</NcButton><a v-if="bookmarklet"
+				:href="bookmarklet"
+				class="bookmarklet"
+				draggable="true">{{ t('shortlinks', 'Drag Shortlinks to your bookmarks') }}</a>
 		</header>
 		<div v-if="selected.size"
 			class="bulk-toolbar"
@@ -42,6 +60,16 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 				{{ t('shortlinks', 'Activate') }}
 			</NcButton><NcButton @click="emit('bulk', { active: false })">
 				{{ t('shortlinks', 'Deactivate') }}
+			</NcButton><NcButton v-if="system === 'trash'" @click="emit('bulk', { action: 'restore' })">
+				{{ t('shortlinks', 'Restore') }}
+			</NcButton><NcButton v-else @click="emit('bulk', { action: 'trash' })">
+				{{ t('shortlinks', 'Move to trash') }}
+			</NcButton>
+			<label>{{ t('shortlinks', 'Move to folder') }}<select v-model="bulkFolderId"><option :value="null">{{ t('shortlinks', 'No folder') }}</option><option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option></select></label><NcButton @click="emit('bulk', { folderId: bulkFolderId })">
+				{{ t('shortlinks', 'Move') }}
+			</NcButton>
+			<label>{{ t('shortlinks', 'Add tag') }}<select v-model="bulkTagId"><option :value="null">—</option><option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option></select></label><NcButton :disabled="bulkTagId === null" @click="emit('bulk', { addTagIds: [bulkTagId] })">
+				{{ t('shortlinks', 'Add tag') }}
 			</NcButton>
 		</div>
 		<NcLoadingIcon v-if="loading" :size="48" :name="t('shortlinks', 'Loading links')" />
@@ -58,6 +86,7 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 						<td>
 							<input type="checkbox"
 								:checked="selected.has(link.id)"
+								:disabled="!link.canEdit"
 								:aria-label="t('shortlinks', 'Select {title}', { title: link.title || link.slug })"
 								@change="emit('toggle', link.id)">
 						</td><td>
@@ -78,7 +107,13 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 								QR
 							</NcButton><NcButton @click="copy(link.targetUrl)">
 								{{ t('shortlinks', 'Copy target') }}
-							</NcButton><NcButton @click="remove(link)">
+							</NcButton><NcButton v-if="!link.deletedAt" @click="clone(link)">
+								{{ t('shortlinks', 'Duplicate') }}
+							</NcButton><NcButton v-if="link.deletedAt && link.canEdit" @click="restore(link)">
+								{{ t('shortlinks', 'Restore') }}
+							</NcButton><NcButton v-if="link.deletedAt && link.canEdit" @click="removePermanently(link)">
+								{{ t('shortlinks', 'Delete permanently') }}
+							</NcButton><NcButton v-else-if="link.canEdit" @click="remove(link)">
 								{{ t('shortlinks', 'Delete') }}
 							</NcButton>
 						</td>
@@ -86,5 +121,8 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 				</tbody>
 			</table>
 		</div>
+		<NcButton v-if="hasMore" :disabled="loading" @click="emit('more')">
+			{{ t('shortlinks', 'Load more') }}
+		</NcButton>
 	</section>
 </template>

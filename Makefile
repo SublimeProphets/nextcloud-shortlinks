@@ -9,7 +9,7 @@ up:
 	docker compose up -d db redis nextcloud34 cron
 
 install:
-	./scripts/install.sh nextcloud34
+	bash ./scripts/install.sh nextcloud34
 
 seed:
 	docker compose exec -T -u www-data nextcloud34 php occ shortlinks:seed --user=alice
@@ -34,4 +34,4 @@ down:
 	docker compose down
 
 reset:
-	./scripts/reset.sh
+	bash ./scripts/reset.sh

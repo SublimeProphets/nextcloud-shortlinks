@@ -21,7 +21,7 @@ composer install
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
 docker compose up -d db redis nextcloud34 cron
-./scripts/install.sh nextcloud34
+bash ./scripts/install.sh nextcloud34
 ```
 
 On Windows PowerShell, use `Copy-Item .env.example .env` and `./scripts/install.ps1`. Open `http://localhost:8080`. Development-only accounts are `admin` / `admin-dev-only`, `alice` / `alice-dev-only`, and `bob` / `bob-dev-only`; change them whenever the environment is reachable by anyone else.

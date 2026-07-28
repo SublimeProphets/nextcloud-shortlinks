@@ -9,8 +9,9 @@ use OCA\Shortlinks\Db\ClickEventMapper;
 use OCA\Shortlinks\Db\ShortLink;
 use OCA\Shortlinks\Db\ShortLinkMapper;
 use OCA\Shortlinks\Db\StatsMapper;
-use OCA\Shortlinks\Exception\NotFoundException;
 use OCA\Shortlinks\Event\BeforeClickRecordedEvent;
+use OCA\Shortlinks\Exception\NotFoundException;
+use OCA\Shortlinks\Exception\ValidationException;
 use OCA\Shortlinks\Policy\LinkPolicy;
 use OCA\Shortlinks\Provider\Geo\GeoResolverInterface;
 use OCA\Shortlinks\Provider\UserAgent\UserAgentParserInterface;
@@ -77,7 +78,10 @@ final class StatsService {
 	/** @return array<string,mixed> */
 	public function overview(int $from, int $to): array {
 		$uid = $this->policy->currentUid();
-		$overview = $this->stats->overview($uid);
+		$now = $this->time->getTime();
+		$from = max(0, $from);
+		$to = max($from, min($to, $now));
+		$overview = $this->stats->overview($uid, $from, $to, $now);
 		$overview['from'] = $from;
 		$overview['to'] = $to;
 		return $overview;
@@ -95,7 +99,39 @@ final class StatsService {
 		foreach (['referrer', 'browser', 'os', 'device', 'country', 'region', 'bot', 'authentication'] as $dimension) {
 			$dimensions[$dimension] = $this->stats->daily($id, $fromDay, $toDay, $dimension);
 		}
-		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'totalClicks' => $link->getClickCount(), 'timeSeries' => $this->stats->daily($id, $fromDay, $toDay), 'dimensions' => $dimensions];
+		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'totalClicks' => $link->getClickCount(), 'uniqueVisitors' => $this->stats->uniqueVisitorsForLink($id, $from, $to), 'timeSeries' => $this->stats->daily($id, $fromDay, $toDay), 'dimensions' => $dimensions];
+	}
+
+	/** @return array{filename:string,mimeType:string,content:string} */
+	public function exportForLink(int $id, int $from, int $to, string $format): array {
+		$data = $this->forLink($id, $from, $to);
+		if ($format === 'json') {
+			return ['filename' => 'shortlink-' . $id . '-statistics.json', 'mimeType' => 'application/json', 'content' => json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)];
+		}
+		if ($format !== 'csv') {
+			throw new ValidationException('Statistics export format must be csv or json', ['format' => 'invalid']);
+		}
+		$stream = fopen('php://temp', 'w+');
+		if ($stream === false) {
+			throw new \RuntimeException('Could not create statistics export');
+		}
+		fputcsv($stream, ['section', 'period_or_dimension', 'value', 'clicks', 'unique_visitors']);
+		foreach ((array)$data['timeSeries'] as $row) {
+			fputcsv($stream, ['time_series', $this->csvSafe((string)$row['day']), 'all', (int)$row['clicks'], (int)$row['uniqueVisitors']]);
+		}
+		foreach ((array)$data['dimensions'] as $dimension => $rows) {
+			foreach ((array)$rows as $row) {
+				fputcsv($stream, ['dimension', $this->csvSafe((string)$dimension), $this->csvSafe((string)$row['value']), (int)$row['clicks'], (int)$row['uniqueVisitors']]);
+			}
+		}
+		rewind($stream);
+		$content = stream_get_contents($stream);
+		fclose($stream);
+		return ['filename' => 'shortlink-' . $id . '-statistics.csv', 'mimeType' => 'text/csv; charset=utf-8', 'content' => $content === false ? '' : $content];
+	}
+
+	private function csvSafe(string $value): string {
+		return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'" . $value : $value;
 	}
 
 	/** @return array{items:list<array<string,mixed>>,pagination:array<string,int>} */

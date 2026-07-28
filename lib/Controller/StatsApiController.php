@@ -54,6 +54,23 @@ final class StatsApiController extends AbstractApiOCSController {
 		return $this->respond(fn () => $this->stats->forLink($id, $from, $to));
 	}
 	/**
+	 * Export privacy-reduced statistics for one link
+	 *
+	 * @param int $id Link identifier
+	 * @param string $format Export format: json or csv
+	 * @param null|int $from Inclusive Unix start timestamp
+	 * @param null|int $to Inclusive Unix end timestamp
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Statistics export payload
+	 */
+	#[NoAdminRequired]
+	public function export(int $id, string $format = 'json', ?int $from = null, ?int $to = null): DataResponse {
+		$to ??= time();
+		$from ??= $to - 30 * 86400;
+		return $this->respond(fn () => $this->stats->exportForLink($id, $from, $to, $format));
+	}
+	/**
 	 * Return the privacy-reduced click log for one link
 	 *
 	 * @param int $id Link identifier

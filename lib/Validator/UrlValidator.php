@@ -14,7 +14,6 @@ final class UrlValidator implements TargetUrlValidatorInterface {
 	}
 
 	public function validate(string $url): string {
-		$url = trim($url);
 		if ($url === '' || strlen($url) > 8192 || str_contains($url, '\\') || preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
 			throw new ValidationException('Invalid target URL', ['targetUrl' => 'invalid']);
 		}
@@ -26,7 +25,7 @@ final class UrlValidator implements TargetUrlValidatorInterface {
 		if (!in_array($scheme, $this->settings->allowedSchemes(), true)) {
 			throw new ValidationException('URL scheme is not allowed', ['targetUrl' => 'scheme']);
 		}
-		$host = $this->asciiHost((string)$parts['host']);
+		$host = $this->asciiHost($parts['host']);
 		if ($host === '' || !$this->settings->isDomainAllowed($host)) {
 			throw new ValidationException('Target domain is not allowed', ['targetUrl' => 'domain']);
 		}
@@ -72,7 +71,7 @@ final class UrlValidator implements TargetUrlValidatorInterface {
 			return $host;
 		}
 		if (function_exists('idn_to_ascii')) {
-			$ascii = idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+			$ascii = idn_to_ascii($host);
 			if ($ascii === false) {
 				throw new ValidationException('Target domain is invalid', ['targetUrl' => 'domain']);
 			}

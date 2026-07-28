@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { loadState } from '@nextcloud/initial-state'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -11,6 +12,7 @@ import { useShortlinks } from './stores/useShortlinks'
 import type { ShortLink } from './types'
 
 const store = useShortlinks()
+const capabilities = loadState<{ redirectStatuses: Array<301 | 302 | 307 | 308> }>('shortlinks', 'capabilities')
 const showCreate = ref(false)
 const selectedLink = ref<ShortLink | null>(null)
 const editLink = ref<ShortLink | null>(null)
@@ -28,19 +30,26 @@ onMounted(async () => {
 			:tags="store.state.tags"
 			:active-system="store.state.system"
 			:active-folder-id="store.state.folderId"
+			:active-tag-ids="store.state.tagIds"
 			@create="showCreate = true"
 			@filter="store.setFilter($event.system, $event.folderId)"
+			@tag="store.toggleTagFilter($event)"
 			@changed="store.refresh()" />
 		<NcAppContent>
 			<LinkList :links="store.state.links"
+				:folders="store.state.folders"
+				:tags="store.state.tags"
 				:loading="store.state.loading"
 				:error="store.state.error"
 				:selected="store.state.selected"
+				:has-more="store.state.hasMore"
+				:system="store.state.system"
 				@open="selectedLink = $event"
 				@toggle="store.toggleSelected($event)"
 				@refresh="store.refresh()"
 				@search="store.state.search = $event; store.refresh()"
-				@bulk="store.bulk($event)" />
+				@bulk="store.bulk($event)"
+				@more="store.loadMore()" />
 		</NcAppContent>
 		<NcAppSidebar v-if="selectedLink" :name="selectedLink.title || selectedLink.slug" @close="selectedLink = null">
 			<LinkDetail :link="selectedLink"
@@ -50,6 +59,7 @@ onMounted(async () => {
 		<LinkForm v-if="showCreate"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
+			:redirect-statuses="capabilities.redirectStatuses"
 			:prefill-url="prefill.get('url') || ''"
 			:prefill-title="prefill.get('title') || ''"
 			@close="showCreate = false"
@@ -57,6 +67,7 @@ onMounted(async () => {
 		<LinkForm v-if="editLink"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
+			:redirect-statuses="capabilities.redirectStatuses"
 			:link="editLink"
 			@close="editLink = null"
 			@save="store.update(editLink, $event).then(() => { editLink = null; selectedLink = null })" />

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace OCA\Shortlinks\Service;
 
+use JsonException;
+use OCA\Shortlinks\Enum\AccessMode;
 use OCA\Shortlinks\Exception\ValidationException;
+use OCA\Shortlinks\Validator\TargetUrlValidatorInterface;
 
 final class ImportExportService {
 	public function __construct(
 		private readonly LinkService $links,
+		private readonly TargetUrlValidatorInterface $urls,
 	) {
 	}
 
@@ -60,9 +64,8 @@ final class ImportExportService {
 			try {
 				$data = ['targetUrl' => (string)($row['target_url'] ?? $row['targetUrl'] ?? $row['url'] ?? ''), 'slug' => $conflict === 'new-alias' ? '' : (string)($row['slug'] ?? $row['keyword'] ?? ''), 'title' => (string)($row['title'] ?? ''), 'description' => ($row['description'] ?? null), 'active' => !isset($row['active']) || filter_var($row['active'], FILTER_VALIDATE_BOOL), 'favorite' => isset($row['favorite']) && filter_var($row['favorite'], FILTER_VALIDATE_BOOL), 'redirectStatus' => (int)($row['redirect_status'] ?? $row['redirectStatus'] ?? 302), 'accessMode' => (string)($row['access_mode'] ?? $row['accessMode'] ?? 'public')];
 				if ($dryRun) {
-					if ($data['targetUrl'] === '') {
-						throw new ValidationException('Missing target URL');
-					} ++$result['created'];
+					$this->validateDryRow($data);
+					++$result['created'];
 				} else {
 					$this->links->create($data);
 					++$result['created'];
@@ -85,7 +88,11 @@ final class ImportExportService {
 
 	/** @return list<array<string,mixed>> */
 	private function jsonRows(string $content): array {
-		$data = json_decode($content, true, 32, JSON_THROW_ON_ERROR);
+		try {
+			$data = json_decode($content, true, 32, JSON_THROW_ON_ERROR);
+		} catch (JsonException) {
+			throw new ValidationException('JSON import is malformed', ['content' => 'invalid']);
+		}
 		$rows = is_array($data) && isset($data['links']) ? $data['links'] : $data;
 		if (!is_array($rows)) {
 			throw new ValidationException('JSON import must contain an array of links', ['content' => 'invalid']);
@@ -111,5 +118,20 @@ final class ImportExportService {
 			} $rows[] = array_combine($headers, $values) ?: [];
 		} fclose($stream);
 		return $rows;
+	}
+
+	/** @param array<string,mixed> $data */
+	private function validateDryRow(array $data): void {
+		$this->urls->validate((string)$data['targetUrl']);
+		$slug = trim((string)$data['slug']);
+		if ($slug !== '' && !$this->links->isAliasAvailable($slug)) {
+			throw new ValidationException('Alias is already in use', ['slug' => 'conflict']);
+		}
+		if (!in_array((int)$data['redirectStatus'], [301, 302, 307, 308], true)) {
+			throw new ValidationException('Invalid redirect status', ['redirectStatus' => 'invalid']);
+		}
+		if (AccessMode::tryFrom((string)$data['accessMode']) === null || $data['accessMode'] === AccessMode::Password->value) {
+			throw new ValidationException('Imported access mode is invalid or requires an interactive password', ['accessMode' => 'invalid']);
+		}
 	}
 }

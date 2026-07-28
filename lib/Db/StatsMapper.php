@@ -13,14 +13,118 @@ final class StatsMapper {
 	) {
 	}
 
-	/** @return array{totalLinks:int,activeLinks:int,totalClicks:int} */
-	public function overview(string $ownerUid): array {
+	/** @return array<string,mixed> */
+	public function overview(string $ownerUid, int $from, int $to, int $now): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->selectAlias($qb->func()->sum('click_count'), 'total_clicks')->addSelect($qb->func()->count('id', 'total_links'))->from('shortlinks_links')->where($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))->andWhere($qb->expr()->isNull('deleted_at'));
 		$row = $qb->executeQuery()->fetch() ?: [];
 		$active = $this->db->getQueryBuilder();
 		$active->select($active->func()->count('id', 'count'))->from('shortlinks_links')->where($active->expr()->eq('owner_uid', $active->createNamedParameter($ownerUid)))->andWhere($active->expr()->eq('is_active', $active->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)))->andWhere($active->expr()->isNull('deleted_at'));
-		return ['totalLinks' => (int)($row['total_links'] ?? 0), 'activeLinks' => (int)$active->executeQuery()->fetchOne(), 'totalClicks' => (int)($row['total_clicks'] ?? 0)];
+		return [
+			'totalLinks' => (int)($row['total_links'] ?? 0),
+			'activeLinks' => (int)$active->executeQuery()->fetchOne(),
+			'totalClicks' => (int)($row['total_clicks'] ?? 0),
+			'uniqueVisitors' => $this->uniqueVisitors($ownerUid, $from, $to),
+			'clicksToday' => $this->countClicks($ownerUid, $now - ($now % 86400), $now),
+			'clicks7Days' => $this->countClicks($ownerUid, $now - 7 * 86400, $now),
+			'clicks30Days' => $this->countClicks($ownerUid, $now - 30 * 86400, $now),
+			'periodClicks' => $this->countClicks($ownerUid, $from, $to),
+			'topLinks' => $this->rankedLinks($ownerUid, 'DESC'),
+			'leastUsedLinks' => $this->rankedLinks($ownerUid, 'ASC'),
+			'newestLinks' => $this->newestLinks($ownerUid),
+			'dimensions' => [
+				'referrer' => $this->topDimension($ownerUid, 'referrer', $from, $to),
+				'country' => $this->topDimension($ownerUid, 'country', $from, $to),
+				'region' => $this->topDimension($ownerUid, 'region', $from, $to),
+				'browser' => $this->topDimension($ownerUid, 'browser', $from, $to),
+				'os' => $this->topDimension($ownerUid, 'os', $from, $to),
+				'device' => $this->topDimension($ownerUid, 'device', $from, $to),
+				'authentication' => $this->topDimension($ownerUid, 'authentication', $from, $to),
+				'bot' => $this->topDimension($ownerUid, 'bot', $from, $to),
+			],
+		];
+	}
+
+	private function uniqueVisitors(string $ownerUid, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('c.visitor_hash')->from('shortlinks_clicks', 'c')
+			->innerJoin('c', 'shortlinks_links', 'l', $qb->expr()->eq('l.id', 'c.link_id'))
+			->where($qb->expr()->eq('l.owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->gte('c.clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('c.clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('c.visitor_hash'))
+			->andWhere($qb->expr()->neq('c.visitor_hash', $qb->createNamedParameter('')));
+		$result = $qb->executeQuery();
+		$count = 0;
+		while ($result->fetchOne() !== false) {
+			++$count;
+		}
+		$result->closeCursor();
+		return $count;
+	}
+
+	/** @return list<array{value:string,clicks:int}> */
+	private function topDimension(string $ownerUid, string $dimension, int $from, int $to): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->sum('d.clicks'), 'clicks')
+			->addSelect('d.dimension_value')
+			->from('shortlinks_daily_stats', 'd')
+			->innerJoin('d', 'shortlinks_links', 'l', $qb->expr()->eq('l.id', 'd.link_id'))
+			->where($qb->expr()->eq('l.owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->eq('d.dimension', $qb->createNamedParameter($dimension)))
+			->andWhere($qb->expr()->gte('d.day', $qb->createNamedParameter(gmdate('Y-m-d', max(0, $from)))))
+			->andWhere($qb->expr()->lte('d.day', $qb->createNamedParameter(gmdate('Y-m-d', max($from, $to)))))
+			->groupBy('d.dimension_value')
+			->orderBy('clicks', 'DESC')
+			->setMaxResults(10);
+		$result = $qb->executeQuery();
+		$rows = [];
+		while (($row = $result->fetch()) !== false) {
+			$rows[] = ['value' => (string)$row['dimension_value'], 'clicks' => (int)$row['clicks']];
+		}
+		$result->closeCursor();
+		return $rows;
+	}
+
+	private function countClicks(string $ownerUid, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('c.id', 'count'))->from('shortlinks_clicks', 'c')
+			->innerJoin('c', 'shortlinks_links', 'l', $qb->expr()->eq('l.id', 'c.link_id'))
+			->where($qb->expr()->eq('l.owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->gte('c.clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('c.clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)));
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+
+	/** @return list<array<string,mixed>> */
+	private function rankedLinks(string $ownerUid, string $direction): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'slug', 'title', 'click_count')->from('shortlinks_links')
+			->where($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->isNull('deleted_at'))
+			->orderBy('click_count', $direction)->addOrderBy('updated_at', 'DESC')->setMaxResults(10);
+		return $this->linkRows($qb);
+	}
+
+	/** @return list<array<string,mixed>> */
+	private function newestLinks(string $ownerUid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'slug', 'title', 'click_count')->from('shortlinks_links')
+			->where($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->isNull('deleted_at'))
+			->orderBy('created_at', 'DESC')->setMaxResults(10);
+		return $this->linkRows($qb);
+	}
+
+	/** @return list<array<string,mixed>> */
+	private function linkRows(IQueryBuilder $qb): array {
+		$result = $qb->executeQuery();
+		$rows = [];
+		while (($row = $result->fetch()) !== false) {
+			$rows[] = ['id' => (int)$row['id'], 'slug' => (string)$row['slug'], 'title' => (string)$row['title'], 'clicks' => (int)$row['click_count']];
+		}
+		$result->closeCursor();
+		return $rows;
 	}
 
 	/** @return list<array<string,mixed>> */
@@ -34,6 +138,23 @@ final class StatsMapper {
 		}
 		$result->closeCursor();
 		return $rows;
+	}
+
+	public function uniqueVisitorsForLink(int $linkId, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('visitor_hash')->from('shortlinks_clicks')
+			->where($qb->expr()->eq('link_id', $qb->createNamedParameter($linkId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('visitor_hash'))
+			->andWhere($qb->expr()->neq('visitor_hash', $qb->createNamedParameter('')));
+		$result = $qb->executeQuery();
+		$count = 0;
+		while ($result->fetchOne() !== false) {
+			++$count;
+		}
+		$result->closeCursor();
+		return $count;
 	}
 
 	/** @return list<array<string,mixed>> */
@@ -51,12 +172,19 @@ final class StatsMapper {
 
 	/** @param array<string,array{clicks:int,visitors:array<string,true>}> $buckets */
 	public function replaceDay(string $day, array $buckets): void {
-		$delete = $this->db->getQueryBuilder();
-		$delete->delete('shortlinks_daily_stats')->where($delete->expr()->eq('day', $delete->createNamedParameter($day)))->executeStatement();
-		foreach ($buckets as $key => $bucket) {
-			[$linkId, $dimension, $value] = explode('|', $key, 3);
-			$qb = $this->db->getQueryBuilder();
-			$qb->insert('shortlinks_daily_stats')->values(['link_id' => $qb->createNamedParameter((int)$linkId, IQueryBuilder::PARAM_INT), 'day' => $qb->createNamedParameter($day), 'dimension' => $qb->createNamedParameter($dimension), 'dimension_value' => $qb->createNamedParameter(substr($value, 0, 255)), 'clicks' => $qb->createNamedParameter($bucket['clicks'], IQueryBuilder::PARAM_INT), 'unique_visitors' => $qb->createNamedParameter(count($bucket['visitors']), IQueryBuilder::PARAM_INT)])->executeStatement();
+		$this->db->beginTransaction();
+		try {
+			$delete = $this->db->getQueryBuilder();
+			$delete->delete('shortlinks_daily_stats')->where($delete->expr()->eq('day', $delete->createNamedParameter($day)))->executeStatement();
+			foreach ($buckets as $key => $bucket) {
+				[$linkId, $dimension, $value] = explode('|', $key, 3);
+				$qb = $this->db->getQueryBuilder();
+				$qb->insert('shortlinks_daily_stats')->values(['link_id' => $qb->createNamedParameter((int)$linkId, IQueryBuilder::PARAM_INT), 'day' => $qb->createNamedParameter($day), 'dimension' => $qb->createNamedParameter($dimension), 'dimension_value' => $qb->createNamedParameter(substr($value, 0, 255)), 'clicks' => $qb->createNamedParameter($bucket['clicks'], IQueryBuilder::PARAM_INT), 'unique_visitors' => $qb->createNamedParameter(count($bucket['visitors']), IQueryBuilder::PARAM_INT)])->executeStatement();
+			}
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
 		}
 	}
 

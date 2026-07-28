@@ -9,25 +9,36 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
 
-const props = defineProps<{ folders: Folder[]; tags: Tag[]; prefillUrl?: string; prefillTitle?: string; link?: ShortLink }>()
+const props = withDefaults(defineProps<{ folders: Folder[]; tags: Tag[]; redirectStatuses?: Array<301 | 302 | 307 | 308>; prefillUrl?: string; prefillTitle?: string; link?: ShortLink }>(), {
+	redirectStatuses: () => [301, 302, 307, 308],
+	prefillUrl: '',
+	prefillTitle: '',
+	link: undefined,
+})
 const emit = defineEmits<{ close: []; save: [draft: Partial<LinkDraft>] }>()
 const draft = reactive<LinkDraft>({ targetUrl: props.link?.targetUrl ?? props.prefillUrl ?? '', title: props.link?.title ?? props.prefillTitle ?? '', slug: props.link?.slug ?? '', description: props.link?.description ?? '', folderId: props.link?.folderId ?? null, tagIds: props.link?.tags.map(tag => tag.id) ?? [], active: props.link?.active ?? true, favorite: props.link?.favorite ?? false, accessMode: props.link?.accessMode ?? 'public', password: '', redirectStatus: props.link?.redirectStatus ?? 302, startsAt: props.link?.startsAt ?? null, expiresAt: props.link?.expiresAt ?? null, clickLimit: props.link?.clickLimit ?? null })
 const checking = ref(false); const aliasMessage = ref('')
-const canSave = computed(() => /^https?:\/\//i.test(draft.targetUrl ?? '') && (draft.accessMode !== 'password' || Boolean(draft.password)))
+const accessModes: Array<{ value: AccessMode; label: string }> = [{ value: 'public', label: 'Public/unlisted' }, { value: 'authenticated', label: 'Signed-in users' }, { value: 'users', label: 'Selected users' }, { value: 'groups', label: 'Selected groups' }, { value: 'password', label: 'Password protected' }, { value: 'disabled', label: 'Disabled' }]
+const canSave = computed(() => /^https?:\/\//i.test(draft.targetUrl ?? '') && (draft.accessMode !== 'password' || Boolean(draft.password) || Boolean(props.link?.passwordProtected)))
+const startsAtLocal = computed({ get: () => toLocal(draft.startsAt), set: value => { draft.startsAt = toTimestamp(value) } })
+const expiresAtLocal = computed({ get: () => toLocal(draft.expiresAt), set: value => { draft.expiresAt = toTimestamp(value) } })
 /**
  *
  */
-async function checkAlias() { if (!draft.slug) { aliasMessage.value = ''; return } checking.value = true; try { const result = await api.aliasAvailable(draft.slug); aliasMessage.value = result.available ? t('shortlinks', 'Alias is available') : t('shortlinks', 'Alias is already used') } catch (e) { aliasMessage.value = e instanceof Error ? e.message : String(e) } finally { checking.value = false } }
+async function checkAlias() { if (!draft.slug) { aliasMessage.value = ''; return } if (props.link?.slug === draft.slug) { aliasMessage.value = t('shortlinks', 'This is the current alias'); return } checking.value = true; try { const result = await api.aliasAvailable(draft.slug); aliasMessage.value = result.available ? t('shortlinks', 'Alias is available') : t('shortlinks', 'Alias is already used') } catch (e) { aliasMessage.value = e instanceof Error ? e.message : String(e) } finally { checking.value = false } }
 /**
  *
  * @param id Tag identifier to toggle
  */
 function toggleTag(id: number) { const values = draft.tagIds ?? []; draft.tagIds = values.includes(id) ? values.filter(value => value !== id) : [...values, id] }
+function toLocal(timestamp: number | null): string { if (timestamp === null) return ''; const date = new Date(timestamp * 1000); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) }
+function toTimestamp(value: string): number | null { if (!value) return null; const milliseconds = new Date(value).getTime(); return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null }
+function submit() { const payload: Partial<LinkDraft> = { ...draft, tagIds: [...draft.tagIds] }; if (props.link && !payload.password) delete payload.password; emit('save', payload) }
 </script>
 
 <template>
 	<NcDialog :name="link ? t('shortlinks', 'Edit short link') : t('shortlinks', 'New short link')" size="large" @closing="emit('close')">
-		<form id="shortlink-form" class="link-form" @submit.prevent="emit('save', draft)">
+		<form id="shortlink-form" class="link-form" @submit.prevent="submit">
 			<NcTextField v-model="draft.targetUrl"
 				type="url"
 				required
@@ -50,7 +61,7 @@ function toggleTag(id: number) { const values = draft.tagIds ?? []; draft.tagIds
 				</NcCheckboxRadioSwitch>
 			</fieldset>
 			<div class="form-grid">
-				<label>{{ t('shortlinks', 'Redirect') }}<select v-model="draft.redirectStatus"><option v-for="status in [301,302,307,308]" :key="status" :value="status">{{ status }}</option></select></label><label>{{ t('shortlinks', 'Access') }}<select v-model="draft.accessMode"><option v-for="mode in (['public','authenticated','users','groups','password','disabled'] as AccessMode[])" :key="mode" :value="mode">{{ mode }}</option></select></label>
+				<label>{{ t('shortlinks', 'Redirect') }}<select v-model="draft.redirectStatus"><option v-for="status in redirectStatuses" :key="status" :value="status">{{ status }}</option></select></label><label>{{ t('shortlinks', 'Access') }}<select v-model="draft.accessMode"><option v-for="mode in accessModes" :key="mode.value" :value="mode.value">{{ t('shortlinks', mode.label) }}</option></select></label>
 			</div>
 			<p v-if="draft.redirectStatus === 301 || draft.redirectStatus === 308" class="warning">
 				{{ t('shortlinks', 'Permanent redirects can be cached, making statistics incomplete.') }}
@@ -59,8 +70,12 @@ function toggleTag(id: number) { const values = draft.tagIds ?? []; draft.tagIds
 				v-model="draft.password"
 				type="password"
 				autocomplete="new-password"
-				required
+				:required="!link?.passwordProtected"
 				:label="t('shortlinks', 'Password')" />
+			<div class="form-grid">
+				<label>{{ t('shortlinks', 'Valid from') }}<input v-model="startsAtLocal" type="datetime-local"></label>
+				<label>{{ t('shortlinks', 'Expires at') }}<input v-model="expiresAtLocal" type="datetime-local"></label>
+			</div>
 			<label>{{ t('shortlinks', 'Click limit') }}<input v-model.number="draft.clickLimit" type="number" min="1"></label>
 			<NcCheckboxRadioSwitch v-model="draft.favorite" type="switch">
 				{{ t('shortlinks', 'Favorite') }}

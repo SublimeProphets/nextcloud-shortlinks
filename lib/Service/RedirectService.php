@@ -58,12 +58,12 @@ final class RedirectService {
 			throw new LinkUnavailableException('This short link reached its click limit', 410, 'click_limit');
 		}
 		$this->assertAccess($link, $password);
+		$this->events->dispatchTyped(new BeforeRedirectEvent($link));
 		try {
-			$this->urls->validate($link->getTargetUrl());
+			$targetUrl = $this->urls->validate($link->getTargetUrl());
 		} catch (\OCA\Shortlinks\Exception\ValidationException) {
 			throw new LinkUnavailableException('The target is no longer permitted', 410, 'target_blocked');
 		}
-		$this->events->dispatchTyped(new BeforeRedirectEvent($link));
 		if (!$this->links->incrementClick($link->getId(), $link->getClickLimit(), $now)) {
 			throw new LinkUnavailableException('This short link reached its click limit', 410, 'click_limit');
 		}
@@ -73,7 +73,7 @@ final class RedirectService {
 			$this->logger->warning('Shortlinks click statistics failed', ['app' => 'shortlinks', 'linkId' => $link->getId(), 'exception' => $e]);
 		}
 		$this->events->dispatchTyped(new AfterRedirectEvent($link));
-		return ['url' => $link->getTargetUrl(), 'status' => $link->getRedirectStatus(), 'protected' => $link->getAccessMode() !== AccessMode::Public->value];
+		return ['url' => $targetUrl, 'status' => $link->getRedirectStatus(), 'protected' => $link->getAccessMode() !== AccessMode::Public->value];
 	}
 
 	private function assertAccess(ShortLink $link, ?string $password): void {

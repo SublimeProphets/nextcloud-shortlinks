@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   php:
     runs-on: ubuntu-24.04
@@ -25,11 +29,14 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
+      - run: xmllint --noout appinfo/info.xml
       - run: composer validate --strict
       - run: composer lint
       - run: composer cs:check
       - run: composer psalm
       - run: composer test:unit
+      - run: composer openapi
+      - run: git diff --exit-code -- openapi.json
       - run: composer audit --locked
 
   frontend:
@@ -44,23 +51,23 @@ jobs:
       - run: pnpm lint
       - run: pnpm stylelint
       - run: pnpm typecheck
-      - run: pnpm test -- --coverage
+      - run: pnpm translations:check
+      - run: pnpm test --coverage
       - run: pnpm build
       - run: pnpm audit --audit-level high
       - name: Enforce production asset budget
         run: test $(du -sk js css | awk '{s += $1} END {print s}') -lt 2048
 
   nextcloud:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {version: '34', profile: '', service: nextcloud34}
-          - {version: '35', profile: nextcloud35, service: nextcloud35}
-          - {version: '34-pg', profile: postgres, service: nextcloud-postgres}
-          - {version: '34-sqlite', profile: sqlite, service: nextcloud-sqlite}
+          - {version: '34', profile: '', service: nextcloud34, base_url: 'http://localhost:8080', e2e: true}
+          - {version: '35', profile: nextcloud35, service: nextcloud35, base_url: 'http://localhost:8081', e2e: false}
+          - {version: '34-pg', profile: postgres, service: nextcloud-postgres, base_url: 'http://localhost:8082', e2e: false}
+          - {version: '34-sqlite', profile: sqlite, service: nextcloud-sqlite, base_url: 'http://localhost:8083', e2e: false}
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -77,9 +84,29 @@ jobs:
           PROFILE: ${{ matrix.profile }}
           SERVICE: ${{ matrix.service }}
       - name: Install and check app
-        run: ./scripts/install.sh "$SERVICE" && docker compose exec -T -u www-data "$SERVICE" php occ app:check-code shortlinks
+        run: bash ./scripts/install.sh "$SERVICE" && docker compose exec -T -u www-data "$SERVICE" php occ app:check-code shortlinks
         env:
           SERVICE: ${{ matrix.service }}
+      - name: Install smoke-test browser
+        if: matrix.e2e && github.event_name != 'schedule'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser smoke test
+        if: matrix.e2e && github.event_name != 'schedule'
+        run: pnpm exec playwright test --project=chromium
+        env:
+          NEXTCLOUD_URL: ${{ matrix.base_url }}
+          NEXTCLOUD_TEST_USER: alice
+          NEXTCLOUD_TEST_PASSWORD: alice-dev-only
+      - name: Install full browser matrix
+        if: matrix.e2e && github.event_name == 'schedule'
+        run: pnpm exec playwright install --with-deps chromium firefox
+      - name: Full browser suite
+        if: matrix.e2e && github.event_name == 'schedule'
+        run: pnpm exec playwright test
+        env:
+          NEXTCLOUD_URL: ${{ matrix.base_url }}
+          NEXTCLOUD_TEST_USER: alice
+          NEXTCLOUD_TEST_PASSWORD: alice-dev-only
       - name: Logs
         if: always()
         run: docker compose logs --no-color

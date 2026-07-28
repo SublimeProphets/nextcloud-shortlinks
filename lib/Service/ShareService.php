@@ -31,14 +31,14 @@ final class ShareService {
 	/** @return list<array<string,mixed>> */
 	public function list(int $linkId): array {
 		$link = $this->link($linkId);
-		$this->policy->requireEdit($link);
+		$this->policy->requireShare($link);
 		return array_map(static fn (Permission $p): array => $p->toArray(), $this->permissions->findForLink($linkId));
 	}
 
 	/** @return array<string,mixed> */
 	public function create(int $linkId, string $type, string $principalId, string $permission, string $purpose = 'management'): array {
 		$link = $this->link($linkId);
-		$this->policy->requireEdit($link);
+		$this->policy->requireShare($link);
 		if (!in_array($type, ['user', 'group'], true) || !in_array($purpose, ['management', 'access'], true) || SharePermission::tryFrom($permission) === null || ($purpose === 'access' && $permission !== 'view')) {
 			throw new ValidationException('Invalid share', ['share' => 'invalid']);
 		}
@@ -66,7 +66,7 @@ final class ShareService {
 
 	public function delete(int $linkId, int $shareId): void {
 		$link = $this->link($linkId);
-		$this->policy->requireEdit($link);
+		$this->policy->requireShare($link);
 		$share = $this->permissions->findOne($shareId, $linkId);
 		if ($share === null) {
 			throw new NotFoundException('Share not found');

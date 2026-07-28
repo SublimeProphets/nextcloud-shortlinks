@@ -13,3 +13,5 @@ curl -u 'alice:APP_PASSWORD' -H 'OCS-APIRequest: true' -H 'Content-Type: applica
 ```
 
 Clients must not put credentials or tokens in URLs. There is no permissive CORS or JSONP. HTTP 400 means validation, 401/403 authentication/authorisation, 404 hidden/not found, 409 uniqueness/concurrency, 429 rate limit, and 500 an unexpected server failure. Public resolution uses `/apps/shortlinks/r/{slug}` and exposes no management/statistics response.
+
+Administrators may explicitly enable the rate-limited public creation endpoint `POST /apps/shortlinks/public/v1/shorten`. It is disabled by default, requires a configured owner UID, accepts only `targetUrl`, optional `slug`, `title` and `description`, and always creates a public 302 link. Public creation group restrictions apply to authenticated callers; an empty group list also permits guests. Do not expose this endpoint without an upstream abuse-control policy.

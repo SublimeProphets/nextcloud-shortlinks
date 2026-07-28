@@ -91,7 +91,7 @@ final class SettingsService {
 	private function asciiDomain(string $host): string {
 		$host = strtolower(trim(rtrim($host, '.'), '[]'));
 		if (function_exists('idn_to_ascii') && !filter_var($host, FILTER_VALIDATE_IP)) {
-			$ascii = idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+			$ascii = idn_to_ascii($host);
 			return $ascii === false ? '' : strtolower($ascii);
 		}
 		return $host;
@@ -106,7 +106,17 @@ final class SettingsService {
 			} elseif (in_array($key, self::INT_KEYS, true) && (is_int($value) || (is_string($value) && preg_match('/^\d+$/D', $value) === 1))) {
 				$normalized[$key] = (int)$value;
 			} elseif (in_array($key, self::ARRAY_KEYS, true) && is_array($value)) {
-				$normalized[$key] = array_values(array_unique(array_map(static fn (mixed $item): string => trim((string)$item), array_slice($value, 0, 500))));
+				$items = [];
+				foreach (array_slice($value, 0, 500) as $item) {
+					if (!is_string($item) && !is_int($item)) {
+						throw new ValidationException('Invalid administration setting', [$key => 'invalid']);
+					}
+					$item = trim((string)$item);
+					if ($item !== '') {
+						$items[] = $item;
+					}
+				}
+				$normalized[$key] = array_values(array_unique($items));
 			} elseif (array_key_exists($key, self::DEFAULTS) && is_string($value)) {
 				$normalized[$key] = trim($value);
 			} else {
@@ -120,8 +130,13 @@ final class SettingsService {
 		if ((int)$candidate['alias_min_length'] < 1 || (int)$candidate['alias_length'] < (int)$candidate['alias_min_length'] || (int)$candidate['alias_length'] > 64) {
 			throw new ValidationException('Alias length is outside the allowed range', ['aliasLength' => 'invalid']);
 		}
-		if ((int)$candidate['max_links_per_user'] < 1) {
-			throw new ValidationException('Maximum links per user must be positive', ['maxLinksPerUser' => 'invalid']);
+		if ((int)$candidate['max_links_per_user'] < 1 || (int)$candidate['max_links_per_user'] > 1000000) {
+			throw new ValidationException('Maximum links per user must be between 1 and 1000000', ['maxLinksPerUser' => 'invalid']);
+		}
+		foreach (['click_retention_days', 'aggregate_retention_days', 'audit_retention_days', 'trash_retention_days'] as $key) {
+			if ((int)$candidate[$key] < 0 || (int)$candidate[$key] > 36500) {
+				throw new ValidationException('Retention must be between 0 and 36500 days', [$key => 'invalid']);
+			}
 		}
 		if (!in_array($candidate['privacy_mode'], ['counts', 'detailed'], true)) {
 			throw new ValidationException('Invalid privacy mode', ['privacyMode' => 'invalid']);
@@ -152,6 +167,18 @@ final class SettingsService {
 				throw new ValidationException('Invalid reserved alias', ['reservedAliases' => 'invalid']);
 			}
 		}
+		foreach (['creation_groups', 'public_creation_groups'] as $key) {
+			foreach ((array)$candidate[$key] as $groupId) {
+				if (strlen((string)$groupId) > 64 || preg_match('/[\x00-\x1f\x7f]/', (string)$groupId) === 1) {
+					throw new ValidationException('Invalid group identifier', [$key => 'invalid']);
+				}
+			}
+		}
+		foreach (['public_owner_uid' => 64, 'geoip_path' => 4096] as $key => $maximum) {
+			if (strlen((string)$candidate[$key]) > $maximum || preg_match('/[\x00-\x1f\x7f]/', (string)$candidate[$key]) === 1) {
+				throw new ValidationException('Invalid administration setting', [$key => 'invalid']);
+			}
+		}
 		$this->validateBaseUrl((string)$candidate['base_url']);
 
 		$normalized['allowed_schemes'] = $schemes;
@@ -178,11 +205,16 @@ final class SettingsService {
 		if ($value === '') {
 			return null;
 		}
+		if (strlen($value) > 4096) {
+			throw new ValidationException('Public base URL is too long', ['baseUrl' => 'invalid']);
+		}
 		$parts = parse_url($value);
-		if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
+		$host = is_array($parts) && isset($parts['host']) ? $this->asciiDomain($parts['host']) : '';
+		if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || $host === '' || !in_array(strtolower($parts['scheme']), ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || str_contains($value, '\\') || preg_match('/[\x00-\x20\x7f]/', $value) === 1) {
 			throw new ValidationException('Public base URL must be an absolute HTTP(S) URL without credentials, query, or fragment', ['baseUrl' => 'invalid']);
 		}
-		return $value;
+		$hostForUrl = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? '[' . $host . ']' : $host;
+		return strtolower($parts['scheme']) . '://' . $hostForUrl . (isset($parts['port']) ? ':' . $parts['port'] : '') . ($parts['path'] ?? '');
 	}
 
 	private function validDomainRule(string $rule): bool {
@@ -194,7 +226,7 @@ final class SettingsService {
 			return false;
 		}
 		if (function_exists('idn_to_ascii')) {
-			$ascii = idn_to_ascii($rule, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+			$ascii = idn_to_ascii($rule);
 			if ($ascii === false) {
 				return false;
 			}
