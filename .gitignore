@@ -1,5 +1,7 @@
 /node_modules/
+/.pnpm-store/
 /vendor/
+/.php-cs-fixer.cache
 /vendor-bin/*/vendor/
 /coverage/
 /build/

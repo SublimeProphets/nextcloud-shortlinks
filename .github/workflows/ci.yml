@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer validate --strict
+      - run: composer lint
+      - run: composer cs:check
+      - run: composer psalm
+      - run: composer test:unit
+      - run: composer audit --locked
+
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.9.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 24, cache: pnpm}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm stylelint
+      - run: pnpm typecheck
+      - run: pnpm test -- --coverage
+      - run: pnpm build
+      - run: pnpm audit --audit-level high
+      - name: Enforce production asset budget
+        run: test $(du -sk js css | awk '{s += $1} END {print s}') -lt 2048
+
+  nextcloud:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {version: '34', profile: '', service: nextcloud34}
+          - {version: '35', profile: nextcloud35, service: nextcloud35}
+          - {version: '34-pg', profile: postgres, service: nextcloud-postgres}
+          - {version: '34-sqlite', profile: sqlite, service: nextcloud-sqlite}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', coverage: none, tools: composer:v2}
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.9.0, run_install: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 24, cache: pnpm}
+      - run: composer install --no-dev --classmap-authoritative
+      - run: pnpm install --frozen-lockfile && pnpm build
+      - name: Start selected stack
+        run: docker compose ${PROFILE:+--profile "$PROFILE"} up -d "$SERVICE"
+        env:
+          PROFILE: ${{ matrix.profile }}
+          SERVICE: ${{ matrix.service }}
+      - name: Install and check app
+        run: ./scripts/install.sh "$SERVICE" && docker compose exec -T -u www-data "$SERVICE" php occ app:check-code shortlinks
+        env:
+          SERVICE: ${{ matrix.service }}
+      - name: Logs
+        if: always()
+        run: docker compose logs --no-color

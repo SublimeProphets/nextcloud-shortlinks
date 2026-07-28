@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OCA\Shortlinks\Controller;
+
+use OCA\Shortlinks\Service\ImportExportService;
+use OCA\Shortlinks\Service\TitleFetcher;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\OpenAPI;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\IRequest;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
+
+#[OpenAPI(tags: ['tools'])]
+final class ToolsApiController extends AbstractApiOCSController {
+	public function __construct(
+		string $appName,
+		IRequest $request,
+		LoggerInterface $logger,
+		private readonly ImportExportService $transfer,
+		private readonly IURLGenerator $urls,
+		private readonly TitleFetcher $titles,
+	) {
+		parent::__construct($appName, $request, $logger);
+	}
+	/**
+	 * Export visible links as structured JSON or CSV data
+	 *
+	 * @param string $format Export format: json or csv
+	 * @param string $system Collection filter
+	 * @param null|int $folderId Folder identifier
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Export result
+	 */
+	#[NoAdminRequired]
+	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null): DataResponse {
+		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId]));
+	}
+	/**
+	 * Import links from bounded JSON or CSV content
+	 *
+	 * @return DataResponse<Http::STATUS_CREATED, array<string, mixed>, array{}>
+	 *
+	 * 201: Import result
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
+	public function importLinks(): DataResponse {
+		return $this->respond(function (): array {
+			$p = $this->payload(['format', 'content', 'dryRun', 'conflict']);
+			return $this->transfer->import((string)($p['format'] ?? 'csv'), (string)($p['content'] ?? ''), (bool)($p['dryRun'] ?? true), (string)($p['conflict'] ?? 'skip'));
+		}, Http::STATUS_CREATED);
+	}
+	/**
+	 * Return a bookmarklet generated from the trusted Nextcloud base URL
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Bookmarklet code
+	 */
+	#[NoAdminRequired]
+	public function bookmarklet(): DataResponse {
+		return $this->respond(function (): array {
+			$url = $this->urls->linkToRouteAbsolute('shortlinks.page.index');
+			$target = json_encode($url, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+			return ['code' => "javascript:(()=>{const b={$target};location.href=b+'?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title)})()", 'mobileAlternative' => $url];
+		});
+	}
+	/**
+	 * Fetch a remote page title with SSRF protection
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Page title
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 60)]
+	public function title(): DataResponse {
+		return $this->respond(function (): array {
+			$payload = $this->payload(['targetUrl']);
+			return ['title' => $this->titles->fetch((string)($payload['targetUrl'] ?? ''))];
+		});
+	}
+}

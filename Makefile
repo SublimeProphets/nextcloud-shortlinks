@@ -1,0 +1,37 @@
+.PHONY: setup up install seed test down reset logs nextcloud35 postgres sqlite
+
+setup:
+	composer install
+	corepack pnpm install --frozen-lockfile
+	corepack pnpm build
+
+up:
+	docker compose up -d db redis nextcloud34 cron
+
+install:
+	./scripts/install.sh nextcloud34
+
+seed:
+	docker compose exec -T -u www-data nextcloud34 php occ shortlinks:seed --user=alice
+
+test:
+	composer test:all
+	corepack pnpm test:all
+
+nextcloud35:
+	docker compose --profile nextcloud35 up -d nextcloud35
+
+postgres:
+	docker compose --profile postgres up -d nextcloud-postgres
+
+sqlite:
+	docker compose --profile sqlite up -d nextcloud-sqlite
+
+logs:
+	docker compose logs -f nextcloud34 cron
+
+down:
+	docker compose down
+
+reset:
+	./scripts/reset.sh

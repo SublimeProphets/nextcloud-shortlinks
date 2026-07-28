@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<psalm
+	errorLevel="4"
+	findUnusedBaselineEntry="false"
+	findUnusedCode="false"
+	resolveFromConfigFile="true"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="https://getpsalm.org/schema/config"
+	xsi:schemaLocation="https://getpsalm.org/schema/config vendor-bin/psalm/vendor/vimeo/psalm/config.xsd">
+	<projectFiles>
+		<directory name="lib"/>
+		<ignoreFiles>
+			<directory name="vendor"/>
+			<directory name="vendor-bin"/>
+		</ignoreFiles>
+	</projectFiles>
+	<extraFiles>
+		<directory name="vendor/nextcloud/ocp/OCP"/>
+	</extraFiles>
+	<issueHandlers>
+		<MissingOverrideAttribute errorLevel="info"/>
+		<!-- OCS OpenAPI docblocks describe the successful response. The shared
+		     responder deliberately widens that return type to normalized errors. -->
+		<InvalidReturnType>
+			<errorLevel type="suppress">
+				<directory name="lib/Controller"/>
+			</errorLevel>
+		</InvalidReturnType>
+		<InvalidReturnStatement>
+			<errorLevel type="suppress">
+				<directory name="lib/Controller"/>
+			</errorLevel>
+		</InvalidReturnStatement>
+	</issueHandlers>
+</psalm>

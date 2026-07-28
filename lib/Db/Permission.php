@@ -14,6 +14,8 @@ use OCP\DB\Types;
  * @method void setPrincipalType(string $value)
  * @method string getPrincipalId()
  * @method void setPrincipalId(string $value)
+ * @method string getPurpose()
+ * @method void setPurpose(string $value)
  * @method string getPermission()
  * @method void setPermission(string $value)
  * @method int getCreatedAt()
@@ -23,6 +25,7 @@ final class Permission extends Entity {
 	protected int $linkId = 0;
 	protected string $principalType = 'user';
 	protected string $principalId = '';
+	protected string $purpose = 'management';
 	protected string $permission = 'view';
 	protected int $createdAt = 0;
 
@@ -33,6 +36,6 @@ final class Permission extends Entity {
 
 	/** @return array<string, mixed> */
 	public function toArray(): array {
-		return ['id' => $this->getId(), 'type' => $this->getPrincipalType(), 'principalId' => $this->getPrincipalId(), 'permission' => $this->getPermission()];
+		return ['id' => $this->getId(), 'type' => $this->getPrincipalType(), 'principalId' => $this->getPrincipalId(), 'purpose' => $this->getPurpose(), 'permission' => $this->getPermission()];
 	}
 }

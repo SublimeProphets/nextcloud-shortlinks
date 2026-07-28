@@ -41,6 +41,7 @@ return [
 		['name' => 'tools_api#exportLinks', 'url' => '/api/v1/export/links', 'verb' => 'GET'],
 		['name' => 'tools_api#importLinks', 'url' => '/api/v1/import/links', 'verb' => 'POST'],
 		['name' => 'tools_api#bookmarklet', 'url' => '/api/v1/tools/bookmarklet', 'verb' => 'GET'],
+		['name' => 'tools_api#title', 'url' => '/api/v1/tools/title', 'verb' => 'POST'],
 		['name' => 'capabilities_api#index', 'url' => '/api/v1/capabilities', 'verb' => 'GET'],
 		['name' => 'activity_api#index', 'url' => '/api/v1/links/{id}/activity', 'verb' => 'GET'],
 	],

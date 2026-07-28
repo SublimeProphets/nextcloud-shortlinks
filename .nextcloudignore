@@ -6,6 +6,7 @@
 /coverage
 /docs/development.md
 /node_modules
+/.pnpm-store
 /scripts
 /src
 /tests

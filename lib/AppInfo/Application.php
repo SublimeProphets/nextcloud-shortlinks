@@ -11,6 +11,8 @@ use OCA\Shortlinks\Provider\Geo\GeoResolverInterface;
 use OCA\Shortlinks\Provider\Geo\MaxMindGeoResolver;
 use OCA\Shortlinks\Provider\UserAgent\DeviceDetectorParser;
 use OCA\Shortlinks\Provider\UserAgent\UserAgentParserInterface;
+use OCA\Shortlinks\Validator\TargetUrlValidatorInterface;
+use OCA\Shortlinks\Validator\UrlValidator;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -27,6 +29,7 @@ final class Application extends App implements IBootstrap {
 		$context->registerServiceAlias(AliasGeneratorInterface::class, ConfigurableAliasGenerator::class);
 		$context->registerServiceAlias(UserAgentParserInterface::class, DeviceDetectorParser::class);
 		$context->registerServiceAlias(GeoResolverInterface::class, MaxMindGeoResolver::class);
+		$context->registerServiceAlias(TargetUrlValidatorInterface::class, UrlValidator::class);
 		$context->registerCapability(Capabilities::class);
 	}
 

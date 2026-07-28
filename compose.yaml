@@ -1,0 +1,177 @@
+name: ${COMPOSE_PROJECT_NAME:-nextcloud-shortlinks-dev}
+
+x-nextcloud: &nextcloud
+  restart: unless-stopped
+  environment: &nextcloud-env
+    NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+    NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin-dev-only}
+    NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+    REDIS_HOST: redis
+  volumes:
+    - ./:/var/www/html/custom_apps/shortlinks
+  depends_on:
+    redis:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/status.php | grep -q '\"installed\":true'"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 60s
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    environment:
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-nextcloud}
+      MARIADB_USER: ${MYSQL_USER:-nextcloud}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-nextcloud-dev-only}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-dev-only}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nextcloud34:
+    <<: *nextcloud
+    image: nextcloud:34-apache
+    ports:
+      - "${NEXTCLOUD_PORT:-8080}:80"
+    environment:
+      <<: *nextcloud-env
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nextcloud}
+      MYSQL_USER: ${MYSQL_USER:-nextcloud}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nextcloud-dev-only}
+    volumes:
+      - nextcloud34_data:/var/www/html
+      - ./:/var/www/html/custom_apps/shortlinks
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  cron:
+    image: nextcloud:34-apache
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    volumes:
+      - nextcloud34_data:/var/www/html
+      - ./:/var/www/html/custom_apps/shortlinks
+    depends_on:
+      nextcloud34:
+        condition: service_healthy
+
+  nextcloud35:
+    <<: *nextcloud
+    image: nextcloud:35-apache
+    profiles: ["nextcloud35"]
+    ports:
+      - "${NEXTCLOUD35_PORT:-8081}:80"
+    environment:
+      <<: *nextcloud-env
+      MYSQL_HOST: db35
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nextcloud}
+      MYSQL_USER: ${MYSQL_USER:-nextcloud}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nextcloud-dev-only}
+    volumes:
+      - nextcloud35_data:/var/www/html
+      - ./:/var/www/html/custom_apps/shortlinks
+    depends_on:
+      db35:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db35:
+    image: mariadb:11.4
+    profiles: ["nextcloud35"]
+    environment:
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-nextcloud}
+      MARIADB_USER: ${MYSQL_USER:-nextcloud}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-nextcloud-dev-only}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-dev-only}
+    volumes:
+      - mariadb35_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-nextcloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextcloud-dev-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  nextcloud-postgres:
+    <<: *nextcloud
+    image: nextcloud:34-apache
+    profiles: ["postgres"]
+    ports:
+      - "${POSTGRES_PORT:-8082}:80"
+    environment:
+      <<: *nextcloud-env
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-nextcloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextcloud-dev-only}
+    volumes:
+      - nextcloud_postgres_data:/var/www/html
+      - ./:/var/www/html/custom_apps/shortlinks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nextcloud-sqlite:
+    <<: *nextcloud
+    image: nextcloud:34-apache
+    profiles: ["sqlite"]
+    ports:
+      - "${SQLITE_PORT:-8083}:80"
+    environment:
+      <<: *nextcloud-env
+      SQLITE_DATABASE: nextcloud
+    volumes:
+      - nextcloud_sqlite_data:/var/www/html
+      - ./:/var/www/html/custom_apps/shortlinks
+
+volumes:
+  mariadb_data:
+  mariadb35_data:
+  postgres_data:
+  redis_data:
+  nextcloud34_data:
+  nextcloud35_data:
+  nextcloud_postgres_data:
+  nextcloud_sqlite_data:

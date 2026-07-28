@@ -42,5 +42,6 @@
 		<command>OCA\Shortlinks\Command\ExportCommand</command>
 		<command>OCA\Shortlinks\Command\GeoIpCheckCommand</command>
 		<command>OCA\Shortlinks\Command\OwnerTransferCommand</command>
+		<command>OCA\Shortlinks\Command\SeedCommand</command>
 	</commands>
 </info>

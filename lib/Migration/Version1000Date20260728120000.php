@@ -20,6 +20,7 @@ final class Version1000Date20260728120000 extends SimpleMigrationStep {
 			$table->addColumn('owner_uid', 'string', ['length' => 64, 'notnull' => true]);
 			$table->addColumn('folder_id', 'bigint', ['notnull' => false, 'unsigned' => true]);
 			$table->addColumn('slug', 'string', ['length' => 128, 'notnull' => true]);
+			$table->addColumn('slug_hash', 'string', ['length' => 64, 'notnull' => true]);
 			$table->addColumn('target_url', 'text', ['notnull' => true]);
 			$table->addColumn('target_hash', 'string', ['length' => 64, 'notnull' => true]);
 			$table->addColumn('title', 'string', ['length' => 255, 'notnull' => true, 'default' => '']);
@@ -39,7 +40,8 @@ final class Version1000Date20260728120000 extends SimpleMigrationStep {
 			$table->addColumn('deleted_at', 'bigint', ['notnull' => false]);
 			$table->addColumn('entity_version', 'integer', ['notnull' => true, 'default' => 1]);
 			$table->setPrimaryKey(['id']);
-			$table->addUniqueIndex(['slug'], 'sl_slug_uniq');
+			$table->addUniqueIndex(['slug_hash'], 'sl_slug_uniq');
+			$table->addIndex(['slug'], 'sl_slug_display');
 			$table->addIndex(['owner_uid', 'deleted_at', 'updated_at'], 'sl_owner_list');
 			$table->addIndex(['owner_uid', 'folder_id'], 'sl_owner_folder');
 			$table->addIndex(['owner_uid', 'target_hash'], 'sl_owner_target');
@@ -51,6 +53,7 @@ final class Version1000Date20260728120000 extends SimpleMigrationStep {
 			$table->addColumn('id', 'bigint', ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
 			$table->addColumn('owner_uid', 'string', ['length' => 64, 'notnull' => true]);
 			$table->addColumn('parent_id', 'bigint', ['notnull' => false, 'unsigned' => true]);
+			$table->addColumn('parent_key', 'bigint', ['notnull' => true, 'unsigned' => true, 'default' => 0]);
 			$table->addColumn('name', 'string', ['length' => 128, 'notnull' => true]);
 			$table->addColumn('normalized_name', 'string', ['length' => 128, 'notnull' => true]);
 			$table->addColumn('position', 'integer', ['notnull' => true, 'default' => 0]);
@@ -58,7 +61,7 @@ final class Version1000Date20260728120000 extends SimpleMigrationStep {
 			$table->addColumn('updated_at', 'bigint', ['notnull' => true]);
 			$table->setPrimaryKey(['id']);
 			$table->addIndex(['owner_uid', 'parent_id', 'position'], 'sl_folder_tree');
-			$table->addUniqueIndex(['owner_uid', 'parent_id', 'normalized_name'], 'sl_folder_name');
+			$table->addUniqueIndex(['owner_uid', 'parent_key', 'normalized_name'], 'sl_folder_name');
 		}
 
 		if (!$schema->hasTable('shortlinks_tags')) {
@@ -88,10 +91,11 @@ final class Version1000Date20260728120000 extends SimpleMigrationStep {
 			$table->addColumn('link_id', 'bigint', ['notnull' => true, 'unsigned' => true]);
 			$table->addColumn('principal_type', 'string', ['length' => 8, 'notnull' => true]);
 			$table->addColumn('principal_id', 'string', ['length' => 64, 'notnull' => true]);
+			$table->addColumn('purpose', 'string', ['length' => 12, 'notnull' => true, 'default' => 'management']);
 			$table->addColumn('permission', 'string', ['length' => 8, 'notnull' => true]);
 			$table->addColumn('created_at', 'bigint', ['notnull' => true]);
 			$table->setPrimaryKey(['id']);
-			$table->addUniqueIndex(['link_id', 'principal_type', 'principal_id'], 'sl_perm_uniq');
+			$table->addUniqueIndex(['link_id', 'purpose', 'principal_type', 'principal_id'], 'sl_perm_uniq');
 			$table->addIndex(['principal_type', 'principal_id'], 'sl_perm_principal');
 		}
 

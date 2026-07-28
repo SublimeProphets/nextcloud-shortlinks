@@ -2,6 +2,7 @@
   "name": "shortlinks",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -16,8 +17,8 @@
     "test:unit": "vitest run tests/frontend/unit",
     "test:a11y": "vitest run tests/frontend/a11y",
     "test:e2e": "playwright test",
-    "test:security": "npm audit --audit-level=high",
-    "test:all": "npm run lint && npm run stylelint && npm run typecheck && npm run test && npm run build"
+    "test:security": "pnpm audit --audit-level=high",
+    "test:all": "pnpm lint && pnpm stylelint && pnpm typecheck && pnpm test && pnpm build"
   },
   "browserslist": ["extends @nextcloud/browserslist-config"],
   "dependencies": {
@@ -25,14 +26,17 @@
     "@nextcloud/auth": "^2.4.0",
     "@nextcloud/axios": "^2.5.0",
     "@nextcloud/dialogs": "^6.2.0",
+    "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/l10n": "^3.3.0",
-    "@nextcloud/router": "^3.2.0",
+    "@nextcloud/router": "^3.1.0",
     "@nextcloud/vue": "^9.8.2",
     "chart.js": "^4.5.0",
     "qrcode": "^1.5.4",
     "vue": "^3.5.35"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^2.1.4",
+    "@eslint/js": "^8.57.0",
     "@nextcloud/browserslist-config": "^3.1.2",
     "@nextcloud/eslint-config": "^8.4.2",
     "@nextcloud/stylelint-config": "^3.1.1",
@@ -40,11 +44,12 @@
     "@playwright/test": "^1.57.0",
     "@testing-library/vue": "^8.1.0",
     "@types/qrcode": "^1.5.5",
+    "axe-core": "^4.11.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vitest/coverage-v8": "^4.0.0",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.9.1",
-    "eslint": "^9.39.0",
+    "eslint": "^8.57.1",
     "jsdom": "^27.0.0",
     "stylelint": "^16.25.0",
     "typescript": "^5.9.3",
@@ -52,5 +57,5 @@
     "vitest": "^4.0.0",
     "vue-tsc": "^3.1.4"
   },
-  "engines": {"node": "^24.0.0", "npm": "^11.3.0"}
+  "engines": {"node": "^24.0.0"}
 }

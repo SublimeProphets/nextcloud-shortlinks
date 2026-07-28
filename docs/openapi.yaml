@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Shortlinks OCS API
+  version: 1.0.0
+  description: Authenticated, versioned API for the Shortlinks Nextcloud app. Send `OCS-APIRequest: true` and request JSON.
+servers:
+  - url: /ocs/v2.php/apps/shortlinks/api/v1
+security:
+  - basicAuth: []
+  - cookieAuth: []
+tags:
+  - name: links
+  - name: folders
+  - name: tags
+  - name: shares
+  - name: statistics
+  - name: tools
+paths:
+  /links:
+    get:
+      tags: [links]
+      summary: List links visible to the current user
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - {name: search, in: query, schema: {type: string, maxLength: 255}}
+        - {name: system, in: query, schema: {type: string, enum: [all, favorites, recent, used, expired, inactive, trash]}}
+        - {name: folderId, in: query, schema: {type: integer, format: int64, nullable: true}}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+    post:
+      tags: [links]
+      summary: Create a link
+      requestBody: {$ref: '#/components/requestBodies/CreateLink'}
+      responses:
+        '201': {$ref: '#/components/responses/Success'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+  /links/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      tags: [links]
+      summary: Get one visible link
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    patch:
+      tags: [links]
+      summary: Update a link using optimistic version control
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/LinkInput'
+                - type: object
+                  required: [version]
+                  properties: {version: {type: integer, minimum: 1}}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '409': {$ref: '#/components/responses/Error'}
+    delete:
+      tags: [links]
+      summary: Trash, or permanently remove an already trashed link
+      parameters:
+        - {name: permanent, in: query, schema: {type: boolean, default: false}}
+      responses:
+        '204': {description: Deleted}
+        '409': {$ref: '#/components/responses/Error'}
+  /links/{id}/restore:
+    post:
+      tags: [links]
+      summary: Restore a trashed link
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/clone:
+    post:
+      tags: [links]
+      summary: Clone a visible link into the current user's collection
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'201': {$ref: '#/components/responses/Success'}}
+  /links/bulk:
+    post:
+      tags: [links]
+      summary: Apply changes to at most 200 links
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, changes]
+              properties:
+                ids: {type: array, maxItems: 200, uniqueItems: true, items: {type: integer, format: int64}}
+                changes: {type: object, additionalProperties: true}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /shorten:
+    post:
+      tags: [links]
+      summary: YOURLS-style authenticated shortening action
+      requestBody: {$ref: '#/components/requestBodies/CreateLink'}
+      responses: {'201': {$ref: '#/components/responses/Success'}}
+  /expand/{slug}:
+    get:
+      tags: [links]
+      summary: Resolve a visible alias without redirecting
+      parameters: [{$ref: '#/components/parameters/Slug'}]
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /aliases/{slug}:
+    get:
+      tags: [links]
+      summary: Check exact alias availability
+      parameters: [{$ref: '#/components/parameters/Slug'}]
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /folders:
+    get:
+      tags: [folders]
+      summary: List folders
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    post:
+      tags: [folders]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, maxLength: 128}
+                parentId: {type: integer, format: int64, nullable: true}
+                position: {type: integer, minimum: 0}
+      responses: {'201': {$ref: '#/components/responses/Success'}}
+  /folders/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch:
+      tags: [folders]
+      summary: Rename, move or reorder a folder
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    delete:
+      tags: [folders]
+      summary: Delete a folder tree
+      parameters: [{name: deleteLinks, in: query, schema: {type: boolean, default: false}}]
+      responses: {'204': {description: Deleted}}
+  /tags:
+    get:
+      tags: [tags]
+      summary: List tags
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    post:
+      tags: [tags]
+      summary: Create a tag
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'201': {$ref: '#/components/responses/Success'}}
+  /tags/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch:
+      tags: [tags]
+      summary: Update a tag
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    delete:
+      tags: [tags]
+      summary: Delete a tag and detach assignments
+      responses: {'204': {description: Deleted}}
+  /tags/{id}/merge:
+    post:
+      tags: [tags]
+      summary: Merge a tag into another tag owned by the user
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/shares:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      tags: [shares]
+      summary: List management shares
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    post:
+      tags: [shares]
+      summary: Add or replace a user/group view/edit share
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'201': {$ref: '#/components/responses/Success'}}
+  /links/{id}/shares/{shareId}:
+    delete:
+      tags: [shares]
+      summary: Remove a management share
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - {name: shareId, in: path, required: true, schema: {type: integer, format: int64}}
+      responses: {'204': {description: Deleted}}
+  /stats:
+    get:
+      tags: [statistics]
+      summary: Current user's aggregate overview
+      parameters:
+        - {name: from, in: query, schema: {type: integer, format: int64}}
+        - {name: to, in: query, schema: {type: integer, format: int64}}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/stats:
+    get:
+      tags: [statistics]
+      summary: Time series and dimension statistics for a visible link
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - {name: from, in: query, schema: {type: integer, format: int64}}
+        - {name: to, in: query, schema: {type: integer, format: int64}}
+        - {name: bot, in: query, schema: {type: string, enum: [all, include, exclude]}}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/clicks:
+    get:
+      tags: [statistics]
+      summary: Paginated raw event log for a visible link
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/PerPage'}]
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/activity:
+    get:
+      tags: [statistics]
+      summary: Paginated audit trail for a visible link
+      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/PerPage'}]
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /export/links:
+    get:
+      tags: [tools]
+      summary: Export visible links as bounded CSV or JSON
+      parameters: [{name: format, in: query, schema: {type: string, enum: [csv, json], default: json}}]
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /import/links:
+    post:
+      tags: [tools]
+      summary: Validate or import bounded CSV/JSON content
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses:
+        '201': {$ref: '#/components/responses/Success'}
+        '413': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+  /tools/bookmarklet:
+    get:
+      tags: [tools]
+      summary: Generate the authenticated bookmarklet
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /tools/title:
+    post:
+      tags: [tools]
+      summary: Fetch a bounded page title when enabled by the administrator
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '400': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+  /capabilities:
+    get:
+      tags: [tools]
+      summary: App version and supported features
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+components:
+  securitySchemes:
+    basicAuth: {type: http, scheme: basic, description: Use a Nextcloud app password}
+    cookieAuth: {type: apiKey, in: cookie, name: nc_session_id}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    Slug: {name: slug, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_-]+$', minLength: 1, maxLength: 64}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+    PerPage: {name: perPage, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+  requestBodies:
+    CreateLink:
+      required: true
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/LinkInput'
+              - type: object
+                required: [targetUrl]
+    FreeObject:
+      required: true
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
+  responses:
+    Success:
+      description: OCS success envelope
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/OcsEnvelope'}
+    Error:
+      description: OCS error envelope
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/OcsErrorEnvelope'}
+  schemas:
+    LinkInput:
+      type: object
+      additionalProperties: false
+      properties:
+        targetUrl: {type: string, format: uri, maxLength: 8192}
+        slug: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 64}
+        title: {type: string, maxLength: 255}
+        description: {type: string, nullable: true, maxLength: 10000}
+        folderId: {type: integer, format: int64, nullable: true}
+        tagIds: {type: array, maxItems: 50, uniqueItems: true, items: {type: integer, format: int64}}
+        favorite: {type: boolean}
+        active: {type: boolean}
+        startsAt: {type: integer, format: int64, nullable: true}
+        expiresAt: {type: integer, format: int64, nullable: true}
+        clickLimit: {type: integer, format: int64, minimum: 1, nullable: true}
+        redirectStatus: {type: integer, enum: [301, 302, 307, 308]}
+        accessMode: {type: string, enum: [public, authenticated, users, groups, password, disabled]}
+        password: {type: string, format: password}
+    OcsEnvelope:
+      type: object
+      required: [ocs]
+      properties:
+        ocs:
+          type: object
+          required: [meta, data]
+          properties:
+            meta: {type: object, additionalProperties: true}
+            data: {nullable: true}
+    OcsErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/OcsEnvelope'
+        - type: object
+          properties:
+            ocs:
+              type: object
+              properties:
+                data:
+                  type: object
+                  required: [error]
+                  properties:
+                    error:
+                      type: object
+                      required: [code, message]
+                      properties:
+                        code: {type: string}
+                        message: {type: string}
+                        fields: {type: object, additionalProperties: {type: string}}

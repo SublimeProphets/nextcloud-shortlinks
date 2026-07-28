@@ -12,6 +12,8 @@ use OCP\DB\Types;
  * @method void setOwnerUid(string $value)
  * @method ?int getParentId()
  * @method void setParentId(?int $value)
+ * @method int getParentKey()
+ * @method void setParentKey(int $value)
  * @method string getName()
  * @method void setName(string $value)
  * @method string getNormalizedName()
@@ -26,6 +28,7 @@ use OCP\DB\Types;
 final class Folder extends Entity {
 	protected string $ownerUid = '';
 	protected ?int $parentId = null;
+	protected int $parentKey = 0;
 	protected string $name = '';
 	protected string $normalizedName = '';
 	protected int $position = 0;
@@ -34,6 +37,7 @@ final class Folder extends Entity {
 
 	public function __construct() {
 		$this->addType('parentId', Types::BIGINT);
+		$this->addType('parentKey', Types::BIGINT);
 		$this->addType('position', Types::INTEGER);
 		$this->addType('createdAt', Types::BIGINT);
 		$this->addType('updatedAt', Types::BIGINT);

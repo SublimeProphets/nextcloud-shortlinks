@@ -1,0 +1,26 @@
+# Testing
+
+## Local commands
+
+```bash
+composer validate --strict
+composer lint
+composer cs:check
+composer psalm
+composer test:unit
+composer audit
+corepack pnpm lint
+corepack pnpm stylelint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+corepack pnpm audit --audit-level high
+```
+
+Run Playwright against a seeded instance with `BASE_URL=http://localhost:8080 NC_USER=alice NC_PASSWORD=alice-dev-only pnpm test:e2e`. Browsers must first be installed with `pnpm exec playwright install`. The suite defaults to Chromium and Firefox.
+
+Run the redirect smoke test with `k6 run -e BASE_URL=http://localhost:8080 -e SLUG=<known-alias> tests/performance/redirect-smoke.js`. Record CPU/RAM, database, Nextcloud/PHP version, virtualisation and event/statistics mode beside results. Thresholds are smoke guards, not production throughput claims.
+
+Database checks use the Compose variants and should cover a fresh install, `occ maintenance:repair`, link creation, guarded concurrent clicks, aggregation and cleanup. Run `occ app:check-code shortlinks` in both supported Nextcloud versions. CI repeats static/unit/build checks on every push and schedules the container matrix.
+
+Coverage is generated with `vendor-bin/phpunit/vendor/bin/phpunit --coverage-clover coverage/php.xml` and `pnpm vitest run --coverage`; a coverage driver must be installed for PHP. Coverage is evidence, not a substitute for database and browser tests.

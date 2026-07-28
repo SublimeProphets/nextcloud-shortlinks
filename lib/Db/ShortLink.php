@@ -14,6 +14,8 @@ use OCP\DB\Types;
  * @method void setFolderId(?int $value)
  * @method string getSlug()
  * @method void setSlug(string $value)
+ * @method string getSlugHash()
+ * @method void setSlugHash(string $value)
  * @method string getTargetUrl()
  * @method void setTargetUrl(string $value)
  * @method string getTargetHash()
@@ -55,6 +57,7 @@ final class ShortLink extends Entity {
 	protected string $ownerUid = '';
 	protected ?int $folderId = null;
 	protected string $slug = '';
+	protected string $slugHash = '';
 	protected string $targetUrl = '';
 	protected string $targetHash = '';
 	protected string $title = '';

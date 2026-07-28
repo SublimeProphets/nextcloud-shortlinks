@@ -4,11 +4,16 @@
   "license": "AGPL-3.0-or-later",
   "authors": [{"name": "Shortlinks Contributors"}],
   "autoload": {"psr-4": {"OCA\\Shortlinks\\": "lib/"}},
-  "autoload-dev": {"psr-4": {"OCA\\Shortlinks\\Tests\\": "tests/"}},
+  "autoload-dev": {
+    "psr-4": {
+      "OCA\\Shortlinks\\Tests\\Unit\\": "tests/unit/",
+      "OCP\\": "vendor/nextcloud/ocp/OCP/"
+    }
+  },
   "scripts": {
     "post-install-cmd": ["@composer bin all install --ansi"],
     "post-update-cmd": ["@composer bin all install --ansi"],
-    "lint": "find . -name \\*.php -not -path './vendor/*' -not -path './vendor-bin/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",
+    "lint": "@php scripts/lint.php",
     "cs:check": "php-cs-fixer fix --dry-run --diff",
     "cs:fix": "php-cs-fixer fix",
     "psalm": "psalm --threads=1 --no-cache",
@@ -26,6 +31,7 @@
     "php": ">=8.3 <=8.5"
   },
   "require-dev": {
+    "doctrine/dbal": "^4.3",
     "nextcloud/ocp": "dev-stable34",
     "roave/security-advisories": "dev-latest"
   },
@@ -33,6 +39,7 @@
     "allow-plugins": {"bamarni/composer-bin-plugin": true},
     "optimize-autoloader": true,
     "sort-packages": true,
-    "platform": {"php": "8.3.0"}
+    "platform": {"php": "8.3.0"},
+    "platform-check": false
   }
 }
