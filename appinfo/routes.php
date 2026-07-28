@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+	'routes' => [
+		['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
+		['name' => 'redirect#follow', 'url' => '/r/{slug}', 'verb' => 'GET'],
+		['name' => 'redirect#passwordForm', 'url' => '/r/{slug}/password', 'verb' => 'GET'],
+		['name' => 'redirect#passwordSubmit', 'url' => '/r/{slug}/password', 'verb' => 'POST'],
+		['name' => 'qr#show', 'url' => '/qr/{id}', 'verb' => 'GET'],
+		['name' => 'admin_settings#save', 'url' => '/settings/admin', 'verb' => 'PUT'],
+	],
+	'ocs' => [
+		['name' => 'links_api#index', 'url' => '/api/v1/links', 'verb' => 'GET'],
+		['name' => 'links_api#create', 'url' => '/api/v1/links', 'verb' => 'POST'],
+		['name' => 'links_api#show', 'url' => '/api/v1/links/{id}', 'verb' => 'GET'],
+		['name' => 'links_api#update', 'url' => '/api/v1/links/{id}', 'verb' => 'PATCH'],
+		['name' => 'links_api#destroy', 'url' => '/api/v1/links/{id}', 'verb' => 'DELETE'],
+		['name' => 'links_api#restore', 'url' => '/api/v1/links/{id}/restore', 'verb' => 'POST'],
+		['name' => 'links_api#cloneLink', 'url' => '/api/v1/links/{id}/clone', 'verb' => 'POST'],
+		['name' => 'links_api#bulk', 'url' => '/api/v1/links/bulk', 'verb' => 'POST'],
+		['name' => 'links_api#shorten', 'url' => '/api/v1/shorten', 'verb' => 'POST'],
+		['name' => 'links_api#expand', 'url' => '/api/v1/expand/{slug}', 'verb' => 'GET'],
+		['name' => 'links_api#aliasAvailable', 'url' => '/api/v1/aliases/{slug}', 'verb' => 'GET'],
+		['name' => 'folders_api#index', 'url' => '/api/v1/folders', 'verb' => 'GET'],
+		['name' => 'folders_api#create', 'url' => '/api/v1/folders', 'verb' => 'POST'],
+		['name' => 'folders_api#update', 'url' => '/api/v1/folders/{id}', 'verb' => 'PATCH'],
+		['name' => 'folders_api#destroy', 'url' => '/api/v1/folders/{id}', 'verb' => 'DELETE'],
+		['name' => 'tags_api#index', 'url' => '/api/v1/tags', 'verb' => 'GET'],
+		['name' => 'tags_api#create', 'url' => '/api/v1/tags', 'verb' => 'POST'],
+		['name' => 'tags_api#update', 'url' => '/api/v1/tags/{id}', 'verb' => 'PATCH'],
+		['name' => 'tags_api#merge', 'url' => '/api/v1/tags/{id}/merge', 'verb' => 'POST'],
+		['name' => 'tags_api#destroy', 'url' => '/api/v1/tags/{id}', 'verb' => 'DELETE'],
+		['name' => 'shares_api#index', 'url' => '/api/v1/links/{id}/shares', 'verb' => 'GET'],
+		['name' => 'shares_api#create', 'url' => '/api/v1/links/{id}/shares', 'verb' => 'POST'],
+		['name' => 'shares_api#destroy', 'url' => '/api/v1/links/{id}/shares/{shareId}', 'verb' => 'DELETE'],
+		['name' => 'stats_api#overview', 'url' => '/api/v1/stats', 'verb' => 'GET'],
+		['name' => 'stats_api#link', 'url' => '/api/v1/links/{id}/stats', 'verb' => 'GET'],
+		['name' => 'stats_api#clicks', 'url' => '/api/v1/links/{id}/clicks', 'verb' => 'GET'],
+		['name' => 'tools_api#exportLinks', 'url' => '/api/v1/export/links', 'verb' => 'GET'],
+		['name' => 'tools_api#importLinks', 'url' => '/api/v1/import/links', 'verb' => 'POST'],
+		['name' => 'tools_api#bookmarklet', 'url' => '/api/v1/tools/bookmarklet', 'verb' => 'GET'],
+		['name' => 'capabilities_api#index', 'url' => '/api/v1/capabilities', 'verb' => 'GET'],
+		['name' => 'activity_api#index', 'url' => '/api/v1/links/{id}/activity', 'verb' => 'GET'],
+	],
+];

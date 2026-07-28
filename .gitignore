@@ -1,0 +1,11 @@
+/node_modules/
+/vendor/
+/vendor-bin/*/vendor/
+/coverage/
+/build/
+/.env
+/js/*.map
+/css/*.map
+/playwright-report/
+/test-results/
+/.phpunit.cache/
