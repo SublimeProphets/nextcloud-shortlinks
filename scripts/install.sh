@@ -15,6 +15,9 @@ for attempt in $(seq 1 60); do
   sleep 5
 done
 
+# Docker Desktop can create the parent of the nested Shortlinks bind mount as
+# root. Nextcloud declares custom_apps writable, so restore the expected owner.
+docker compose exec -T -u root "$service" chown www-data:www-data /var/www/html/custom_apps
 docker compose exec -T -u www-data "$service" php occ app:enable shortlinks
 docker compose exec -T -u www-data "$service" php occ group:add shortlinks-testers || true
 for user in alice bob; do

@@ -1,6 +1,6 @@
 # Development
 
-Install PHP 8.3+, Composer 2, Node 24, pnpm 11 and Docker Compose. Copy `.env.example`, then run `make setup up install` (Unix) or the equivalent commands in `README.md` plus `scripts/install.ps1` (Windows).
+Install PHP 8.3+, Composer 2, Node 24, pnpm 11 and Docker Compose. On Windows, Docker Desktop needs its WSL 2 Linux backend; verify the daemon with `scripts/check-docker.ps1` before starting Compose. Copy `.env.example`, then run `make setup up install` (Unix) or the equivalent commands in `README.md` plus `scripts/install.ps1` (Windows).
 
 Source layout:
 

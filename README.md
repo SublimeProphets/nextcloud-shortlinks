@@ -21,13 +21,21 @@ composer install
 npm install --global pnpm@latest-11
 pnpm install --no-frozen-lockfile
 pnpm build
+bash ./scripts/check-docker.sh
 docker compose up -d db redis nextcloud34 cron
 bash ./scripts/install.sh nextcloud34
 ```
+After the installation, you can access nextcloud on [localhost:8080](http://localhost:8080/)
 
-On Windows PowerShell with NVM, first run `nvm install 24` and `nvm use 24`, then use `Copy-Item .env.example .env` and `./scripts/install.ps1`. The npm-based pnpm installation avoids stale Corepack signing keys. If an existing Corepack shim blocks the global pnpm install, repair it with `npm install --global corepack@latest` followed by `corepack enable pnpm`. Open `http://localhost:8080`. Development-only accounts are `admin` / `admin-dev-only`, `alice` / `alice-dev-only`, and `bob` / `bob-dev-only`; change them whenever the environment is reachable by anyone else.
+On Windows PowerShell with NVM, first run `nvm install 24` and `nvm use 24`, then use `Copy-Item .env.example .env`, `./scripts/check-docker.ps1`, and `./scripts/install.ps1`. The npm-based pnpm installation avoids stale Corepack signing keys. If an existing Corepack shim blocks the global pnpm install, repair it with `npm install --global corepack@latest` followed by `corepack enable pnpm`.
+
+Docker Desktop on Windows must be running with its Linux/WSL 2 engine before Compose is started. For a first-time setup, open PowerShell as Administrator, run `wsl --install`, reboot Windows, install or start Docker Desktop, and wait until Docker reports that its engine is running. Verify with `./scripts/check-docker.ps1`; only then run `docker compose up -d db redis nextcloud34 cron`. Open `http://localhost:8080` after `./scripts/install.ps1` completes. Development-only accounts are `admin` / `admin-dev-only`, `alice` / `alice-dev-only`, and `bob` / `bob-dev-only`; change them whenever the environment is reachable by anyone else.
+
+Always run `scripts/install.ps1`/`scripts/install.sh` after bringing up a fresh stack. Besides enabling Shortlinks and creating the development users, it restores the writable owner of Nextcloud's `custom_apps` directory when Docker Desktop created the nested bind-mount parent as `root`.
 
 Run `docker compose --profile nextcloud35 up -d nextcloud35`, `--profile postgres up -d nextcloud-postgres`, or `--profile sqlite up -d nextcloud-sqlite` for the other matrix variants. `scripts/reset.*` refuses unexpected Compose project names and removes only project-scoped containers and named volumes.
+
+
 
 ## What is included
 

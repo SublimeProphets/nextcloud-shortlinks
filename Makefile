@@ -6,6 +6,7 @@ setup:
 	pnpm build
 
 up:
+	bash ./scripts/check-docker.sh
 	docker compose up -d db redis nextcloud34 cron
 
 install:
