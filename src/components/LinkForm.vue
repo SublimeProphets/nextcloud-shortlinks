@@ -10,7 +10,7 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
 
-const props = withDefaults(defineProps<{ folders: Folder[]; tags: Tag[]; redirectStatuses?: Array<301 | 302 | 307 | 308>; prefillUrl?: string; prefillTitle?: string; link?: ShortLink; allowTitleFetch?: boolean }>(), {
+const props = withDefaults(defineProps<{ folders: Folder[]; tags: Tag[]; redirectStatuses?: number[]; prefillUrl?: string; prefillTitle?: string; link?: ShortLink; allowTitleFetch?: boolean }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	prefillUrl: '',
 	prefillTitle: '',

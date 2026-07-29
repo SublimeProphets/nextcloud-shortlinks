@@ -8,6 +8,8 @@ use OCA\Shortlinks\Exception\ValidationException;
 use OCA\Shortlinks\Service\SettingsService;
 
 final class UrlValidator implements TargetUrlValidatorInterface {
+	private const UNSAFE_REDIRECT_SCHEMES = ['about', 'blob', 'data', 'file', 'javascript', 'vbscript'];
+
 	public function __construct(
 		private readonly SettingsService $settings,
 	) {
@@ -18,12 +20,20 @@ final class UrlValidator implements TargetUrlValidatorInterface {
 			throw new ValidationException('Invalid target URL', ['targetUrl' => 'invalid']);
 		}
 		$parts = parse_url($url);
-		if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
+		if (!is_array($parts) || !isset($parts['scheme']) || isset($parts['user']) || isset($parts['pass'])) {
 			throw new ValidationException('Target URL must be an absolute URL without credentials', ['targetUrl' => 'invalid']);
 		}
 		$scheme = strtolower($parts['scheme']);
-		if (!in_array($scheme, $this->settings->allowedSchemes(), true)) {
+		if (in_array($scheme, self::UNSAFE_REDIRECT_SCHEMES, true) || !in_array($scheme, $this->settings->allowedSchemes(), true)) {
 			throw new ValidationException('URL scheme is not allowed', ['targetUrl' => 'scheme']);
+		}
+		if (!isset($parts['host'])) {
+			$schemeSeparator = strpos($url, ':');
+			$schemeSpecificPart = $schemeSeparator === false ? '' : substr($url, $schemeSeparator + 1);
+			if (in_array($scheme, ['http', 'https'], true) || $schemeSpecificPart === '' || str_starts_with($schemeSpecificPart, '//')) {
+				throw new ValidationException('Target URL must be an absolute URL without credentials', ['targetUrl' => 'invalid']);
+			}
+			return $scheme . ':' . $schemeSpecificPart;
 		}
 		$host = $this->asciiHost($parts['host']);
 		if ($host === '' || !$this->settings->isDomainAllowed($host)) {
@@ -41,8 +51,11 @@ final class UrlValidator implements TargetUrlValidatorInterface {
 	}
 
 	public function assertSafeForServerRequest(string $url): void {
-		$this->validate($url);
-		$host = $this->asciiHost((string)parse_url($url, PHP_URL_HOST));
+		$normalized = $this->validate($url);
+		if (!in_array(strtolower((string)parse_url($normalized, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+			throw new ValidationException('Server-side requests only support HTTP and HTTPS targets', ['targetUrl' => 'scheme']);
+		}
+		$host = $this->asciiHost((string)parse_url($normalized, PHP_URL_HOST));
 		if ($this->isUnsafeHost($host)) {
 			throw new ValidationException('Private and local targets are blocked for server-side requests', ['targetUrl' => 'ssrf']);
 		}

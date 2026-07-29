@@ -28,8 +28,6 @@ use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IDBConnection;
 
 final class LinkService {
-	private const REDIRECT_STATUSES = [301, 302, 307, 308];
-
 	public function __construct(
 		private readonly ShortLinkMapper $links,
 		private readonly FolderMapper $folders,
@@ -385,8 +383,7 @@ final class LinkService {
 		}
 		if (array_key_exists('redirectStatus', $data)) {
 			$status = (int)$data['redirectStatus'];
-			$allowedStatuses = array_map('intval', $this->settings->array('redirect_statuses', ['301', '302', '307', '308']));
-			if (!in_array($status, self::REDIRECT_STATUSES, true) || !in_array($status, $allowedStatuses, true)) {
+			if (!$this->settings->isRedirectStatusAllowed($status)) {
 				throw new ValidationException('Invalid redirect status', ['redirectStatus' => 'invalid']);
 			}
 			$link->setRedirectStatus($status);

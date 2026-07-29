@@ -38,6 +38,7 @@ final class PublicCreationService {
 		if ($unexpected !== []) {
 			throw new ValidationException('Unexpected public creation fields', array_fill_keys($unexpected, 'unexpected'));
 		}
+		$redirectStatuses = $this->settings->redirectStatuses();
 		return $this->links->createForOwner([
 			'targetUrl' => $data['targetUrl'] ?? '',
 			'slug' => $data['slug'] ?? '',
@@ -45,7 +46,7 @@ final class PublicCreationService {
 			'description' => $data['description'] ?? null,
 			'active' => true,
 			'accessMode' => 'public',
-			'redirectStatus' => 302,
+			'redirectStatus' => in_array(302, $redirectStatuses, true) ? 302 : $redirectStatuses[0],
 		], $ownerUid);
 	}
 }

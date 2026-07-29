@@ -48,7 +48,16 @@ vi.mock('@nextcloud/initial-state', () => ({
 	},
 }))
 
-const global = { stubs: { NcButton: { template: '<button v-bind="$attrs"><slot/></button>' }, NcCheckboxRadioSwitch: { props: ['modelValue'], template: '<label><input type="checkbox" :checked="modelValue"><slot/></label>' }, NcTextField: { props: ['modelValue', 'label'], template: '<label>{{label}}<input :value="modelValue"></label>' } } }
+const global = {
+	stubs: {
+		NcButton: { template: '<button v-bind="$attrs"><slot/></button>' },
+		NcCheckboxRadioSwitch: { props: ['modelValue'], emits: ['update:modelValue'], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', !modelValue)"><slot/></label>' },
+		NcNoteCard: { props: ['heading', 'text'], template: '<aside><strong>{{heading}}</strong>{{text}}<slot/></aside>' },
+		NcSettingsSection: { props: ['name', 'description'], template: '<section><h2>{{name}}</h2><p>{{description}}</p><slot/></section>' },
+		NcTextArea: { props: ['modelValue', 'label'], emits: ['update:modelValue'], template: '<label>{{label}}<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /></label>' },
+		NcTextField: { props: ['modelValue', 'label'], emits: ['update:modelValue'], template: '<label>{{label}}<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></label>' },
+	},
+}
 
 describe('AdminApp', () => {
 	beforeEach(() => {
@@ -67,5 +76,19 @@ describe('AdminApp', () => {
 		const view = render(AdminApp, { global })
 		await fireEvent.click(view.getByRole('button', { name: 'Aggregate now' }))
 		expect(axiosMock.post).toHaveBeenCalledWith('/apps/shortlinks/settings/admin/maintenance/aggregate', undefined, { params: undefined })
+	})
+
+	it('adds custom redirect status codes and URL schemes', async () => {
+		const view = render(AdminApp, { global })
+		await fireEvent.update(view.getByLabelText('Custom redirect status code'), '303')
+		await fireEvent.click(view.getAllByRole('button', { name: 'Add' })[0]!)
+		await fireEvent.update(view.getByLabelText('Custom URL scheme'), 'mailto')
+		await fireEvent.click(view.getAllByRole('button', { name: 'Add' })[1]!)
+		await fireEvent.click(view.getByRole('button', { name: 'Save' }))
+
+		expect(axiosMock.put).toHaveBeenCalledWith('/apps/shortlinks/settings/admin', expect.objectContaining({
+			allowed_schemes: ['http', 'https', 'mailto'],
+			redirect_statuses: [301, 302, 303, 307, 308],
+		}))
 	})
 })

@@ -27,7 +27,9 @@ final class SettingsServiceTest extends TestCase {
 	public static function invalidSettings(): array {
 		return [
 			[['click_retention_days' => -1]],
-			[['allowed_schemes' => ['https', 'ftp']]],
+			[['allowed_schemes' => ['https', 'javascript']]],
+			[['allowed_schemes' => ['https', 'not a scheme']]],
+			[['redirect_statuses' => [200, 302]]],
 			[['creation_groups' => [['nested']]]],
 			[['base_url' => 'https://user:password@example.com']],
 			[['max_links_per_user' => 1000001]],
@@ -39,6 +41,30 @@ final class SettingsServiceTest extends TestCase {
 		$config->expects(self::once())->method('setValueInt')->with('shortlinks', 'max_links_per_user', 250);
 		$config->expects(self::exactly(2))->method('setValueArray');
 		(new SettingsService($config, $this->createStub(ITimeFactory::class)))->save(['max_links_per_user' => 250]);
+	}
+
+	public function testSavesCustomSchemesAndRedirectStatuses(): void {
+		$written = [];
+		$config = $this->config();
+		$config->method('setValueArray')->willReturnCallback(static function (string $app, string $key, array $value) use (&$written): bool {
+			$written[$key] = $value;
+			return true;
+		});
+
+		(new SettingsService($config, $this->createStub(ITimeFactory::class)))->save([
+			'allowed_schemes' => ['HTTPS', 'mailto', 'webcal'],
+			'redirect_statuses' => [302, 303, 399],
+		]);
+
+		self::assertSame(['https', 'mailto', 'webcal'], $written['allowed_schemes']);
+		self::assertSame(['302', '303', '399'], $written['redirect_statuses']);
+	}
+
+	public function testUsesAnAppSpecificStorageKeyForTheFeatureToggle(): void {
+		$config = $this->config();
+		$config->expects(self::once())->method('setValueBool')->with('shortlinks', 'feature_enabled', false);
+
+		(new SettingsService($config, $this->createStub(ITimeFactory::class)))->save(['enabled' => false]);
 	}
 
 	private function config(): IAppConfig {

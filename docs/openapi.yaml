@@ -357,7 +357,7 @@ components:
         startsAt: {type: integer, format: int64, nullable: true}
         expiresAt: {type: integer, format: int64, nullable: true}
         clickLimit: {type: integer, format: int64, minimum: 1, nullable: true}
-        redirectStatus: {type: integer, enum: [301, 302, 307, 308]}
+        redirectStatus: {type: integer, minimum: 300, maximum: 399, description: Must be enabled by an administrator}
         accessMode: {type: string, enum: [public, authenticated, users, groups, password, disabled]}
         password: {type: string, format: password}
     OcsEnvelope:

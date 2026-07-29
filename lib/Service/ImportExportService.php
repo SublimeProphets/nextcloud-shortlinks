@@ -16,6 +16,7 @@ final class ImportExportService {
 		private readonly TargetUrlValidatorInterface $urls,
 		private readonly FolderService $folders,
 		private readonly TagService $tags,
+		private readonly SettingsService $settings,
 	) {
 	}
 
@@ -167,7 +168,7 @@ final class ImportExportService {
 		if ($slug !== '' && !$this->links->isAliasAvailable($slug)) {
 			throw new ValidationException('Alias is already in use', ['slug' => 'conflict']);
 		}
-		if (!in_array((int)$data['redirectStatus'], [301, 302, 307, 308], true)) {
+		if (!$this->settings->isRedirectStatusAllowed((int)$data['redirectStatus'])) {
 			throw new ValidationException('Invalid redirect status', ['redirectStatus' => 'invalid']);
 		}
 		if (AccessMode::tryFrom((string)$data['accessMode']) === null || $data['accessMode'] === AccessMode::Password->value) {

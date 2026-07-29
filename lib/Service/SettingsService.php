@@ -11,6 +11,9 @@ use OCP\IAppConfig;
 use OCP\IUserManager;
 
 final class SettingsService {
+	private const UNSAFE_REDIRECT_SCHEMES = ['about', 'blob', 'data', 'file', 'javascript', 'vbscript'];
+	private const STORAGE_KEY_OVERRIDES = ['enabled' => 'feature_enabled'];
+
 	public const DEFAULTS = [
 		'enabled' => true, 'public_creation' => false, 'max_links_per_user' => 10000,
 		'public_owner_uid' => '',
@@ -35,7 +38,7 @@ final class SettingsService {
 	}
 
 	public function bool(string $key): bool {
-		return $this->config->getValueBool(Application::APP_ID, $key, (bool)(self::DEFAULTS[$key] ?? false));
+		return $this->config->getValueBool(Application::APP_ID, self::STORAGE_KEY_OVERRIDES[$key] ?? $key, (bool)(self::DEFAULTS[$key] ?? false));
 	}
 
 	public function int(string $key): int {
@@ -55,6 +58,17 @@ final class SettingsService {
 	/** @return list<string> */
 	public function allowedSchemes(): array {
 		return $this->array('allowed_schemes', ['http', 'https']);
+	}
+
+	/** @return list<int> */
+	public function redirectStatuses(): array {
+		$statuses = array_values(array_unique(array_map('intval', $this->array('redirect_statuses', ['301', '302', '307', '308']))));
+		$statuses = array_values(array_filter($statuses, self::isRedirectStatus(...)));
+		return $statuses === [] ? [301, 302, 307, 308] : $statuses;
+	}
+
+	public function isRedirectStatusAllowed(int $status): bool {
+		return self::isRedirectStatus($status) && in_array($status, $this->redirectStatuses(), true);
 	}
 
 	/** @return list<string> */
@@ -154,12 +168,17 @@ final class SettingsService {
 		if ((bool)$candidate['public_creation'] && ((string)$candidate['public_owner_uid'] === '' || ($this->users !== null && $this->users->get((string)$candidate['public_owner_uid']) === null))) {
 			throw new ValidationException('Public creation requires an existing owner UID', ['publicOwnerUid' => 'invalid']);
 		}
-		$schemes = array_values(array_unique(array_map('strtolower', (array)$candidate['allowed_schemes'])));
-		if ($schemes === [] || array_diff($schemes, ['http', 'https']) !== []) {
-			throw new ValidationException('Only HTTP and HTTPS URL schemes are supported', ['allowedSchemes' => 'invalid']);
+		$schemes = array_values(array_unique(array_map(static fn (mixed $scheme): string => strtolower(trim((string)$scheme)), (array)$candidate['allowed_schemes'])));
+		if ($schemes === [] || count($schemes) > 64) {
+			throw new ValidationException('At least one valid URL scheme is required', ['allowedSchemes' => 'invalid']);
+		}
+		foreach ($schemes as $scheme) {
+			if (preg_match('/^[a-z][a-z0-9+.-]{0,63}$/D', $scheme) !== 1 || in_array($scheme, self::UNSAFE_REDIRECT_SCHEMES, true)) {
+				throw new ValidationException('Invalid URL scheme configuration', ['allowedSchemes' => 'invalid']);
+			}
 		}
 		$statuses = array_values(array_unique(array_map('intval', (array)$candidate['redirect_statuses'])));
-		if ($statuses === [] || array_diff($statuses, [301, 302, 307, 308]) !== []) {
+		if ($statuses === [] || count($statuses) > 100 || array_filter($statuses, static fn (int $status): bool => !self::isRedirectStatus($status)) !== []) {
 			throw new ValidationException('Invalid redirect status configuration', ['redirectStatuses' => 'invalid']);
 		}
 		foreach (['domain_allowlist', 'domain_blocklist'] as $list) {
@@ -192,7 +211,7 @@ final class SettingsService {
 		$normalized['redirect_statuses'] = array_map('strval', $statuses);
 		foreach ($normalized as $key => $value) {
 			if (in_array($key, self::BOOL_KEYS, true)) {
-				$this->config->setValueBool(Application::APP_ID, $key, (bool)$value);
+				$this->config->setValueBool(Application::APP_ID, self::STORAGE_KEY_OVERRIDES[$key] ?? $key, (bool)$value);
 			} elseif (in_array($key, self::INT_KEYS, true)) {
 				$this->config->setValueInt(Application::APP_ID, $key, (int)$value);
 			} elseif (in_array($key, self::ARRAY_KEYS, true)) {
@@ -269,7 +288,11 @@ final class SettingsService {
 		$result['domain_blocklist'] = $this->array('domain_blocklist');
 		$result['creation_groups'] = $this->array('creation_groups');
 		$result['public_creation_groups'] = $this->array('public_creation_groups');
-		$result['redirect_statuses'] = array_map('intval', $this->array('redirect_statuses', ['301', '302', '307', '308']));
+		$result['redirect_statuses'] = $this->redirectStatuses();
 		return $result;
+	}
+
+	private static function isRedirectStatus(int $status): bool {
+		return $status >= 300 && $status <= 399;
 	}
 }

@@ -43,4 +43,20 @@ final class UrlValidatorTest extends TestCase {
 	public function testNormalizesSchemeAndHostCase(): void {
 		self::assertSame('https://example.com/Path?A=1#B', (new UrlValidator($this->settings()))->validate('HTTPS://Example.COM./Path?A=1#B'));
 	}
+
+	public function testAllowsConfiguredCustomSchemesWithAndWithoutHost(): void {
+		$validator = new UrlValidator($this->settings(['allowed_schemes' => ['https', 'mailto', 'webcal']]));
+		self::assertSame('mailto:user@example.com?subject=Hello', $validator->validate('MAILTO:user@example.com?subject=Hello'));
+		self::assertSame('webcal://calendar.example.com/team', $validator->validate('WEBCAL://Calendar.Example.Com/team'));
+	}
+
+	public function testNeverUsesCustomSchemesForServerSideRequests(): void {
+		$this->expectException(ValidationException::class);
+		(new UrlValidator($this->settings(['allowed_schemes' => ['mailto']])))->assertSafeForServerRequest('mailto:user@example.com');
+	}
+
+	public function testRejectsUnsafeSchemeEvenIfConfigurationWasManipulated(): void {
+		$this->expectException(ValidationException::class);
+		(new UrlValidator($this->settings(['allowed_schemes' => ['javascript']])))->validate('javascript:alert(1)');
+	}
 }
