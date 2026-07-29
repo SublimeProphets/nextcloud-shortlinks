@@ -130,23 +130,47 @@ final class FolderService {
 	}
 
 	private function assertParent(string $uid, ?int $id, ?int $parentId): void {
-		if ($parentId === null) {
-			return;
-		}
-		if ($id === $parentId) {
-			throw new ValidationException('A folder cannot be its own parent', ['parentId' => 'cycle']);
-		}
-		$parent = $this->find($parentId, $uid);
-		$depth = 1;
-		while ($parent->getParentId() !== null) {
-			if ($parent->getParentId() === $id) {
+		$nodeDepth = 1;
+		$currentId = $parentId;
+		$visited = [];
+		while ($currentId !== null) {
+			if ($currentId === $id || isset($visited[$currentId])) {
 				throw new ValidationException('Folder cycle detected', ['parentId' => 'cycle']);
 			}
-			$parent = $this->find($parent->getParentId(), $uid);
-			if (++$depth >= self::MAX_DEPTH) {
+			$visited[$currentId] = true;
+			$parent = $this->find($currentId, $uid);
+			$currentId = $parent->getParentId();
+			if (++$nodeDepth > self::MAX_DEPTH) {
 				throw new ValidationException('Maximum folder depth exceeded', ['parentId' => 'depth']);
 			}
 		}
+		if ($id !== null) {
+			$subtreeHeight = $this->subtreeHeight($id, $this->folders->findAllForOwner($uid));
+			if ($nodeDepth + $subtreeHeight - 1 > self::MAX_DEPTH) {
+				throw new ValidationException('Maximum folder depth exceeded', ['parentId' => 'depth']);
+			}
+		}
+	}
+
+	/** @param list<Folder> $all */
+	private function subtreeHeight(int $rootId, array $all): int {
+		$depths = [$rootId => 1];
+		$height = 1;
+		for ($depth = 1; $depth <= self::MAX_DEPTH; ++$depth) {
+			$found = false;
+			foreach ($all as $folder) {
+				$parentId = $folder->getParentId();
+				if ($parentId !== null && ($depths[$parentId] ?? 0) === $depth && !isset($depths[$folder->getId()])) {
+					$depths[$folder->getId()] = $depth + 1;
+					$height = max($height, $depth + 1);
+					$found = true;
+				}
+			}
+			if (!$found) {
+				break;
+			}
+		}
+		return $height;
 	}
 
 	/** @param list<Folder> $all @return list<int> */

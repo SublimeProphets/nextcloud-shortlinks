@@ -33,13 +33,19 @@ final class ToolsApiController extends AbstractApiOCSController {
 	 * @param string $format Export format: json or csv
 	 * @param string $system Collection filter
 	 * @param null|int $folderId Folder identifier
+	 * @param list<int> $tagIds Tag identifiers
+	 * @param string $tagMode Tag matching mode: and or or
+	 * @param string $search Search text
+	 * @param null|int $createdFrom Earliest creation timestamp
+	 * @param null|int $createdTo Latest creation timestamp
+	 * @param null|bool $active Optional active-state filter
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
 	 *
 	 * 200: Export result
 	 */
 	#[NoAdminRequired]
-	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null): DataResponse {
-		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId]));
+	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null): DataResponse {
+		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active]));
 	}
 	/**
 	 * Import links from bounded JSON or CSV content

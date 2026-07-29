@@ -2,7 +2,7 @@
 
 .links-view { padding: 20px; min-inline-size: 0; width: 100%; }
 
-.links-toolbar, .bulk-toolbar, .row-actions, .form-grid { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.links-toolbar, .bulk-toolbar, .row-actions, .form-grid, .list-options, .inline-create { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .links-toolbar { justify-content: space-between; margin-block-end: 16px; }
 
@@ -30,7 +30,7 @@ td a { display: inline-block; max-inline-size: 28rem; overflow: hidden; text-ove
 
 .link-form { display: grid; gap: 12px; }
 
-.link-form select, .navigation-create select, .navigation-manage select, .bulk-toolbar select, .shortlinks-admin-settings select { min-block-size: 44px; padding-inline: 10px; border: 1px solid var(--color-border-maxcontrast); border-radius: var(--border-radius); background: var(--color-main-background); color: var(--color-main-text); }
+.link-form select, .navigation-create select, .navigation-manage select, .bulk-toolbar select, .list-options select, .detail-panel select, .stats-overview select, .shortlinks-admin-settings select { min-block-size: 44px; padding-inline: 10px; border: 1px solid var(--color-border-maxcontrast); border-radius: var(--border-radius); background: var(--color-main-background); color: var(--color-main-text); }
 
 .link-form label, .navigation-create label, .navigation-manage label, .shortlinks-admin-settings label { display: grid; gap: 4px; }
 
@@ -57,6 +57,26 @@ td a { display: inline-block; max-inline-size: 28rem; overflow: hidden; text-ove
 .share-list { display: grid; gap: 8px; padding: 0; list-style: none; }
 
 .share-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.list-options { margin-block-end: 12px; }
+
+.list-options label, .stats-overview > label { display: grid; gap: 4px; }
+
+.inline-create { margin-block-start: 8px; }
+
+.principal-results { padding: 0; list-style: none; }
+
+.principal-results button { inline-size: 100%; padding: 8px; border: 0; background: var(--color-background-hover); color: var(--color-main-text); text-align: start; cursor: pointer; }
+
+.stats-overview { display: grid; gap: 16px; }
+
+.stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+
+.stats-summary div { padding: 12px; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); }
+
+.stats-summary dt { color: var(--color-text-maxcontrast); }
+
+.stats-summary dd { margin: 4px 0 0; font-size: 1.4rem; font-weight: 600; }
 
 .error { color: var(--color-error-text); }
 

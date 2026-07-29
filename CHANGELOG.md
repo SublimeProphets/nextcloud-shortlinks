@@ -4,6 +4,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Completed per-link and overview statistics UI, granularity/comparison exports, click log and recipient search.
+- Hardened counts-only/DNT event storage, duplicate-target updates, folder subtree depth checks and share auditing.
+- Preserved folder paths, tags, lifecycle fields, creation time and historical click totals during CSV/JSON migration.
+- Split production vendor bundles, expanded German localisation and added admin maintenance controls.
+
 ## [1.0.0] - 2026-07-28
 
 ### Added

@@ -1,4 +1,4 @@
-.PHONY: setup up install seed test down reset logs nextcloud35 postgres sqlite
+.PHONY: setup up install seed test package down reset logs nextcloud35 postgres sqlite
 
 setup:
 	composer install
@@ -17,6 +17,10 @@ seed:
 test:
 	composer test:all
 	corepack pnpm test:all
+
+package:
+	corepack pnpm build
+	bash ./scripts/package.sh
 
 nextcloud35:
 	docker compose --profile nextcloud35 up -d nextcloud35

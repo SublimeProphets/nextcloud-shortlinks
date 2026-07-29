@@ -13,7 +13,7 @@ The public redirect flow is: exact slug hash lookup → lifecycle checks → acc
 - External short domains are presentation/proxy configuration only. Canonical app routing remains `/apps/shortlinks/r/{slug}`, generated through `IURLGenerator`.
 - Ownership is immutable in normal APIs. Transfer is an explicit admin OCC operation. Shares grant view or edit management; redirect access is evaluated separately.
 - All timestamps are Unix UTC seconds. Optimistic `entity_version` prevents lost updates.
-- Raw events are retained for a bounded interval and transformed into daily aggregates. Redirects never make network calls; GeoIP and UA parsing are local.
+- Raw events are retained for a bounded interval and transformed into daily aggregates. Counts-only and DNT/GPC requests create timestamp-only count rows, preserving trends without detailed dimensions. Redirects never make network calls; GeoIP and UA parsing are local.
 - Events and provider interfaces are extension points; arbitrary PHP plugin loading is intentionally unsupported.
 
 ## Public API boundary
@@ -22,4 +22,4 @@ Runtime code imports `OCP\\` interfaces, PSR interfaces and bundled Composer lib
 
 ## Operational boundaries
 
-The request path writes one guarded counter update and, when enabled, one compact event. Aggregation, retention cleanup and visitor-secret rotation run as non-parallel background jobs. Imports are bounded to 5 MiB/5,000 synchronous rows. List endpoints cap pages at 200 items and bulk updates at 200 IDs.
+The request path writes one guarded counter update and, when enabled, one compact event. Aggregation, retention cleanup and visitor-secret rotation run as non-parallel background jobs. Imports are bounded to 5 MiB/5,000 synchronous rows and can preserve source creation times, click totals, folders and tags without fabricating event-level history. List endpoints cap pages at 200 items and bulk updates at 200 IDs.

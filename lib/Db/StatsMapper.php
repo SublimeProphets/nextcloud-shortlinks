@@ -140,6 +140,47 @@ final class StatsMapper {
 		return $rows;
 	}
 
+	/** @return list<array{value:string,clicks:int,uniqueVisitors:int}> */
+	public function dimensionForLink(int $linkId, string $fromDay, string $toDay, string $dimension): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->sum('clicks'), 'clicks')
+			->addSelect('dimension_value')
+			->from('shortlinks_daily_stats')
+			->where($qb->expr()->eq('link_id', $qb->createNamedParameter($linkId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('dimension', $qb->createNamedParameter($dimension)))
+			->andWhere($qb->expr()->gte('day', $qb->createNamedParameter($fromDay)))
+			->andWhere($qb->expr()->lte('day', $qb->createNamedParameter($toDay)))
+			->groupBy('dimension_value')
+			->orderBy('clicks', 'DESC')
+			->setMaxResults(100);
+		$result = $qb->executeQuery();
+		$rows = [];
+		while (($row = $result->fetch()) !== false) {
+			$value = (string)$row['dimension_value'];
+			$rows[$value] = ['value' => $value, 'clicks' => (int)$row['clicks'], 'uniqueVisitors' => 0];
+		}
+		$result->closeCursor();
+		$unique = $this->db->getQueryBuilder();
+		$unique->selectAlias($unique->func()->sum('unique_visitors'), 'unique_visitors')
+			->addSelect('dimension_value')
+			->from('shortlinks_daily_stats')
+			->where($unique->expr()->eq('link_id', $unique->createNamedParameter($linkId, IQueryBuilder::PARAM_INT)))
+			->andWhere($unique->expr()->eq('dimension', $unique->createNamedParameter($dimension)))
+			->andWhere($unique->expr()->gte('day', $unique->createNamedParameter($fromDay)))
+			->andWhere($unique->expr()->lte('day', $unique->createNamedParameter($toDay)))
+			->groupBy('dimension_value')
+			->setMaxResults(100);
+		$uniqueResult = $unique->executeQuery();
+		while (($row = $uniqueResult->fetch()) !== false) {
+			$value = (string)$row['dimension_value'];
+			if (isset($rows[$value])) {
+				$rows[$value]['uniqueVisitors'] = (int)$row['unique_visitors'];
+			}
+		}
+		$uniqueResult->closeCursor();
+		return array_values($rows);
+	}
+
 	public function uniqueVisitorsForLink(int $linkId, int $from, int $to): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->selectDistinct('visitor_hash')->from('shortlinks_clicks')
@@ -160,7 +201,7 @@ final class StatsMapper {
 	/** @return list<array<string,mixed>> */
 	public function eventsForDay(int $from, int $to, int $limit, int $offset): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('link_id', 'visitor_hash', 'referrer_domain', 'browser', 'os', 'device_type', 'country', 'region', 'is_bot', 'user_uid')->from('shortlinks_clicks')->where($qb->expr()->gte('clicked_at', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))->andWhere($qb->expr()->lt('clicked_at', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT)))->orderBy('id', 'ASC')->setMaxResults($limit)->setFirstResult($offset);
+		$qb->select('link_id', 'visitor_hash', 'referrer_domain', 'browser', 'os', 'device_type', 'country', 'region', 'is_bot', 'user_uid', 'outcome')->from('shortlinks_clicks')->where($qb->expr()->gte('clicked_at', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))->andWhere($qb->expr()->lt('clicked_at', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT)))->orderBy('id', 'ASC')->setMaxResults($limit)->setFirstResult($offset);
 		$result = $qb->executeQuery();
 		$rows = [];
 		while (($row = $result->fetch()) !== false) {

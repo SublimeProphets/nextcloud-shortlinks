@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { api } from '../../../src/api/client'
+
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
 
 vi.mock('@nextcloud/axios', () => ({ default: { request: requestMock } }))
@@ -7,8 +9,6 @@ vi.mock('@nextcloud/router', () => ({
 	generateOcsUrl: (path: string) => `/ocs${path}`,
 	generateUrl: (path: string, params: Record<string, number>) => path.replace('{id}', String(params.id)),
 }))
-
-import { api } from '../../../src/api/client'
 
 describe('API client', () => {
 	beforeEach(() => requestMock.mockReset())

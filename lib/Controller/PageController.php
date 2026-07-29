@@ -29,7 +29,7 @@ final class PageController extends Controller {
 	#[NoCSRFRequired]
 	public function index(): TemplateResponse {
 		$this->initialState->provideInitialState('capabilities', $this->capabilities->getCapabilities()['shortlinks']);
-		$this->initialState->provideInitialState('settings', ['aliasMode' => $this->settings->string('alias_mode'), 'aliasLength' => $this->settings->int('alias_length')]);
+		$this->initialState->provideInitialState('settings', ['aliasMode' => $this->settings->string('alias_mode'), 'aliasLength' => $this->settings->int('alias_length'), 'titleFetch' => $this->settings->bool('title_fetch')]);
 		Util::addScript('shortlinks', 'shortlinks-main');
 		Util::addStyle('shortlinks', 'shortlinks-main');
 		return new TemplateResponse('shortlinks', 'index');

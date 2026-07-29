@@ -55,6 +55,8 @@ const lists = reactive({
 const geo = loadState<Record<string, unknown>>('shortlinks', 'geo-status')
 const systemStatus = loadState<{ phpVersion: string; phpSupported: boolean; jobs: Record<string, number> }>('shortlinks', 'system-status')
 const saving = ref(false)
+const maintenanceDays = ref(30)
+const runningMaintenance = ref('')
 /**
  *
  */
@@ -68,6 +70,7 @@ async function save() {
 }
 function toggleRedirectStatus(status: number) { settings.redirect_statuses = settings.redirect_statuses.includes(status) ? settings.redirect_statuses.filter(value => value !== status) : [...settings.redirect_statuses, status] }
 function toggleScheme(scheme: string) { settings.allowed_schemes = settings.allowed_schemes.includes(scheme) ? settings.allowed_schemes.filter(value => value !== scheme) : [...settings.allowed_schemes, scheme] }
+async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') { runningMaintenance.value = action; try { await axios.post(generateUrl('/apps/shortlinks/settings/admin/maintenance/{action}', { action }), undefined, { params: action === 'rebuild' ? { days: maintenanceDays.value } : undefined }); showSuccess(t('shortlinks', 'Maintenance completed')) } catch (error) { showError(error instanceof Error ? error.message : String(error)) } finally { runningMaintenance.value = '' } }
 </script>
 
 <template>
@@ -163,8 +166,26 @@ function toggleScheme(scheme: string) { settings.allowed_schemes = settings.allo
 		<p>{{ t('shortlinks', 'Deleted user data is retained under its former UID and can be recovered with the owner-transfer OCC command.') }}</p>
 		<fieldset>
 			<legend>{{ t('shortlinks', 'System status') }}</legend>
-			<p :class="{ error: !systemStatus.phpSupported }">PHP {{ systemStatus.phpVersion }} — {{ systemStatus.phpSupported ? t('shortlinks', 'Supported') : t('shortlinks', 'Unsupported version') }}</p>
-			<ul><li v-for="(count, job) in systemStatus.jobs" :key="job">{{ t('shortlinks', job) }}: {{ count ? t('shortlinks', 'Registered') : t('shortlinks', 'Missing') }}</li></ul>
+			<p :class="{ error: !systemStatus.phpSupported }">
+				PHP {{ systemStatus.phpVersion }} — {{ systemStatus.phpSupported ? t('shortlinks', 'Supported') : t('shortlinks', 'Unsupported version') }}
+			</p>
+			<ul>
+				<li v-for="(count, job) in systemStatus.jobs" :key="job">
+					{{ t('shortlinks', job) }}: {{ count ? t('shortlinks', 'Registered') : t('shortlinks', 'Missing') }}
+				</li>
+			</ul>
+			<div class="maintenance-actions">
+				<NcButton :disabled="Boolean(runningMaintenance)" @click="runMaintenance('aggregate')">
+					{{ t('shortlinks', 'Aggregate now') }}
+				</NcButton><NcButton :disabled="Boolean(runningMaintenance)" @click="runMaintenance('cleanup')">
+					{{ t('shortlinks', 'Run cleanup') }}
+				</NcButton><label>{{ t('shortlinks', 'Rebuild days') }}<input v-model.number="maintenanceDays"
+					type="number"
+					min="1"
+					max="365"></label><NcButton :disabled="Boolean(runningMaintenance)" @click="runMaintenance('rebuild')">
+						{{ t('shortlinks', 'Rebuild statistics') }}
+					</NcButton>
+			</div>
 		</fieldset>
 		<NcButton variant="primary" :disabled="saving" @click="save">
 			{{ t('shortlinks', 'Save') }}

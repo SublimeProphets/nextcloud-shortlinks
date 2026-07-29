@@ -49,9 +49,11 @@ test('complete link lifecycle, organization, redirect, statistics, and import/ex
 
 	await row.getByRole('button', { name: /E2E example/i }).click()
 	await page.getByRole('button', { name: /^stats$/i }).click()
-	await expect(page.getByText(/total clicks/i)).toBeVisible()
+	await expect(page.getByText(/lifetime clicks:\s*1/i)).toBeVisible()
 	await page.getByRole('button', { name: /^shares$/i }).click()
-	await page.getByLabel(/user or group id/i).fill('bob')
+	await page.getByLabel(/^user or group$/i).fill('bob')
+	await page.getByRole('button', { name: /search recipients/i }).click()
+	await page.getByRole('button', { name: /bob \(bob\).*user/i }).click()
 	await page.getByRole('button', { name: /add permission/i }).click()
 	await expect(page.getByText(/bob/)).toBeVisible()
 	await page.getByRole('button', { name: /close/i }).click()

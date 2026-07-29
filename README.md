@@ -56,11 +56,13 @@ docker compose exec -u www-data nextcloud34 php occ shortlinks:seed --user=alice
 docker compose exec -u www-data nextcloud34 php occ app:check-code shortlinks
 ```
 
-See [development](docs/development.md), [testing](docs/testing.md), [architecture](docs/architecture.md), [user guide](docs/user-guide.md), [admin guide](docs/admin-guide.md), [privacy](docs/privacy.md), [threat model](docs/threat-model.md), [API](docs/api.md), and the [release checklist](docs/release.md).
+See [development](docs/development.md), [testing](docs/testing.md), [architecture](docs/architecture.md), [user guide](docs/user-guide.md), [admin guide](docs/admin-guide.md), [privacy](docs/privacy.md), [threat model](docs/threat-model.md), [API](docs/api.md), [dependency and licence overview](docs/dependencies.md), and the [release checklist](docs/release.md).
 
 ## Production installation
 
-Build with `composer install --no-dev --classmap-authoritative` and `corepack pnpm install --frozen-lockfile && corepack pnpm build`. Package the files permitted by `.nextcloudignore` into a directory named `shortlinks`, place it in a configured Nextcloud apps directory, then run `occ app:enable shortlinks`. Configure system cron and review the Shortlinks administration section before use. The Compose environment is for development only.
+Build with `composer install --no-dev --classmap-authoritative --no-scripts` and `corepack pnpm install --frozen-lockfile && corepack pnpm build`. `--no-scripts` prevents isolated development tools from being installed during production packaging. Package the files permitted by `.nextcloudignore` into a directory named `shortlinks`, place it in a configured Nextcloud apps directory, then run `occ app:enable shortlinks`. Configure system cron and review the Shortlinks administration section before use. The Compose environment is for development only.
+
+For an isolated release artifact, run `make package` or `bash scripts/package.sh`; on Windows PowerShell use `pnpm build` followed by `./scripts/package.ps1`. The unsigned archive and SHA-512 checksum are written below `build/appstore/`. The Bash release path additionally normalises archive ownership/order and the gzip header for bit-reproducible CI builds.
 
 ## Project status and release inputs
 

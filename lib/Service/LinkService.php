@@ -164,8 +164,12 @@ final class LinkService {
 		}
 		if (array_key_exists('targetUrl', $data)) {
 			$url = $this->urlValidator->validate((string)$data['targetUrl']);
+			$targetHash = hash('sha256', $url);
+			if (!$this->settings->bool('allow_duplicate_targets') && $this->links->findOwnerTarget($ownerUid, $targetHash, $id) !== null) {
+				throw new ConflictException('This target URL already has a short link');
+			}
 			$link->setTargetUrl($url);
-			$link->setTargetHash(hash('sha256', $url));
+			$link->setTargetHash($targetHash);
 		}
 		if (array_key_exists('slug', $data)) {
 			$slug = $this->slugValidator->normalize((string)$data['slug']);
@@ -203,6 +207,12 @@ final class LinkService {
 				$this->audit->record('tags_changed', $ownerUid, $link);
 			}
 			$this->db->commit();
+		} catch (Exception $e) {
+			$this->db->rollBack();
+			if ($e->getReason() === Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw new ConflictException('Alias is already in use');
+			}
+			throw $e;
 		} catch (\Throwable $e) {
 			$this->db->rollBack();
 			throw $e;
@@ -331,6 +341,8 @@ final class LinkService {
 	/** @param array<string,mixed> $data */
 	private function newEntity(array $data, string $ownerUid, ?int $folderId, string $slug, string $targetUrl, string $targetHash): ShortLink {
 		$now = $this->time->getTime();
+		$createdAt = array_key_exists('createdAt', $data) && $data['createdAt'] !== null ? max(0, min($now, (int)$data['createdAt'])) : $now;
+		$initialClickCount = array_key_exists('initialClickCount', $data) ? max(0, (int)$data['initialClickCount']) : 0;
 		$link = new ShortLink();
 		$link->setOwnerUid($ownerUid);
 		$link->setFolderId($folderId);
@@ -338,8 +350,8 @@ final class LinkService {
 		$link->setSlugHash(hash('sha256', $slug));
 		$link->setTargetUrl($targetUrl);
 		$link->setTargetHash($targetHash);
-		$link->setClickCount(0);
-		$link->setCreatedAt($now);
+		$link->setClickCount($initialClickCount);
+		$link->setCreatedAt($createdAt);
 		$link->setUpdatedAt($now);
 		$link->setEntityVersion(1);
 		$this->applyMutableFields($link, $data, $ownerUid);

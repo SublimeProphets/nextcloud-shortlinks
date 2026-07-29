@@ -25,6 +25,7 @@ final class StatsService {
 	public function __construct(
 		private readonly ClickEventMapper $clicks,
 		private readonly StatsMapper $stats,
+		private readonly StatsSeriesService $series,
 		private readonly ShortLinkMapper $links,
 		private readonly LinkPolicy $policy,
 		private readonly SettingsService $settings,
@@ -39,13 +40,21 @@ final class StatsService {
 	}
 
 	public function record(ShortLink $link, IRequest $request, string $outcome = 'redirected'): void {
-		if (!$this->settings->bool('stats_enabled') || $this->settings->string('privacy_mode') === 'counts') {
-			return;
-		}
-		if ($this->settings->bool('respect_dnt') && ($request->getHeader('DNT') === '1' || $request->getHeader('Sec-GPC') === '1')) {
+		if (!$this->settings->bool('stats_enabled')) {
 			return;
 		}
 		$now = $this->time->getTime();
+		$detailsSuppressed = $this->settings->string('privacy_mode') === 'counts'
+			|| ($this->settings->bool('respect_dnt') && ($request->getHeader('DNT') === '1' || $request->getHeader('Sec-GPC') === '1'));
+		if ($detailsSuppressed) {
+			$event = new ClickEvent();
+			$event->setLinkId($link->getId());
+			$event->setClickedAt($now);
+			$event->setOutcome('counted');
+			$this->events->dispatchTyped(new BeforeClickRecordedEvent($event));
+			$this->clicks->insert($event);
+			return;
+		}
 		$uaRaw = $request->getHeader('User-Agent');
 		$ua = $this->userAgents->parse($uaRaw);
 		if ($ua['isBot'] && !$this->settings->bool('record_bots')) {
@@ -88,23 +97,36 @@ final class StatsService {
 	}
 
 	/** @return array<string,mixed> */
-	public function forLink(int $id, int $from, int $to): array {
+	public function forLink(int $id, int $from, int $to, string $granularity = 'day', bool $compare = true): array {
 		$link = $this->link($id);
 		$this->policy->requireView($link);
 		$from = max(0, $from);
-		$to = max($from, $to);
+		$to = max($from, min($to, $this->time->getTime()));
 		$fromDay = gmdate('Y-m-d', $from);
 		$toDay = gmdate('Y-m-d', $to);
 		$dimensions = [];
 		foreach (['referrer', 'browser', 'os', 'device', 'country', 'region', 'bot', 'authentication'] as $dimension) {
-			$dimensions[$dimension] = $this->stats->daily($id, $fromDay, $toDay, $dimension);
+			$dimensions[$dimension] = $this->stats->dimensionForLink($id, $fromDay, $toDay, $dimension);
 		}
-		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'totalClicks' => $link->getClickCount(), 'uniqueVisitors' => $this->stats->uniqueVisitorsForLink($id, $from, $to), 'timeSeries' => $this->stats->daily($id, $fromDay, $toDay), 'dimensions' => $dimensions];
+		$timeSeries = $granularity === 'hour'
+			? $this->hourlySeries($id, $from, $to)
+			: $this->series->groupDaily($this->stats->daily($id, $fromDay, $toDay), $granularity);
+		$totalClicks = array_sum(array_column($timeSeries, 'clicks'));
+		$comparison = null;
+		if ($compare) {
+			$duration = max(1, $to - $from + 1);
+			$previousTo = max(0, $from - 1);
+			$previousFrom = max(0, $previousTo - $duration + 1);
+			$previousRows = $this->stats->daily($id, gmdate('Y-m-d', $previousFrom), gmdate('Y-m-d', $previousTo));
+			$previousClicks = array_sum(array_column($previousRows, 'clicks'));
+			$comparison = ['from' => $previousFrom, 'to' => $previousTo, 'clicks' => $previousClicks, 'changePercent' => $previousClicks === 0 ? null : round((($totalClicks - $previousClicks) / $previousClicks) * 100, 1)];
+		}
+		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'granularity' => $granularity, 'totalClicks' => $totalClicks, 'lifetimeClicks' => $link->getClickCount(), 'uniqueVisitors' => $this->stats->uniqueVisitorsForLink($id, $from, $to), 'timeSeries' => $timeSeries, 'dimensions' => $dimensions, 'comparison' => $comparison];
 	}
 
 	/** @return array{filename:string,mimeType:string,content:string} */
-	public function exportForLink(int $id, int $from, int $to, string $format): array {
-		$data = $this->forLink($id, $from, $to);
+	public function exportForLink(int $id, int $from, int $to, string $format, string $granularity = 'day'): array {
+		$data = $this->forLink($id, $from, $to, $granularity);
 		if ($format === 'json') {
 			return ['filename' => 'shortlink-' . $id . '-statistics.json', 'mimeType' => 'application/json', 'content' => json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)];
 		}
@@ -134,13 +156,42 @@ final class StatsService {
 		return preg_match('/^[=+\-@\t\r]/', $value) === 1 ? "'" . $value : $value;
 	}
 
+	/** @return list<array{day:string,value:string,clicks:int,uniqueVisitors:int}> */
+	private function hourlySeries(int $id, int $from, int $to): array {
+		if ($to - $from > 7 * 86400) {
+			throw new ValidationException('Hourly statistics are limited to seven days', ['granularity' => 'range_too_large']);
+		}
+		$buckets = [];
+		$offset = 0;
+		do {
+			$events = $this->clicks->findForLink($id, $from, $to, 5000, $offset);
+			foreach ($events as $event) {
+				$key = gmdate('Y-m-d\\TH:00:00\\Z', $event->getClickedAt());
+				$buckets[$key] ??= ['day' => $key, 'value' => 'all', 'clicks' => 0, 'visitors' => []];
+				++$buckets[$key]['clicks'];
+				if ($event->getVisitorHash() !== null && $event->getVisitorHash() !== '') {
+					$buckets[$key]['visitors'][$event->getVisitorHash()] = true;
+				}
+			}
+			$offset += count($events);
+			if ($offset >= 100000 && count($events) === 5000) {
+				throw new ValidationException('Hourly statistics contain too many events; use daily granularity', ['granularity' => 'too_many_events']);
+			}
+		} while (count($events) === 5000);
+		ksort($buckets);
+		return array_values(array_map(static fn (array $bucket): array => ['day' => $bucket['day'], 'value' => 'all', 'clicks' => $bucket['clicks'], 'uniqueVisitors' => count($bucket['visitors'])], $buckets));
+	}
+
 	/** @return array{items:list<array<string,mixed>>,pagination:array<string,int>} */
-	public function clickLog(int $id, int $from, int $to, int $page, int $perPage): array {
+	public function clickLog(int $id, int $from, int $to, int $page, int $perPage, ?bool $bot = null): array {
 		$link = $this->link($id);
 		$this->policy->requireView($link);
+		if ($this->settings->string('privacy_mode') === 'counts') {
+			return ['items' => [], 'pagination' => ['page' => 1, 'perPage' => max(1, min(200, $perPage)), 'hasMore' => 0]];
+		}
 		$perPage = max(1, min(200, $perPage));
 		$page = max(1, $page);
-		$items = $this->clicks->findForLink($id, $from, $to, $perPage + 1, ($page - 1) * $perPage);
+		$items = $this->clicks->findForLink($id, $from, $to, $perPage + 1, ($page - 1) * $perPage, true, $bot);
 		$hasMore = count($items) > $perPage;
 		$showUsers = $this->settings->bool('log_authenticated_users');
 		$serialized = array_map(static function (ClickEvent $event) use ($showUsers): array {
@@ -165,7 +216,10 @@ final class StatsService {
 			foreach ($rows as $row) {
 				$linkId = (int)$row['link_id'];
 				$visitor = (string)($row['visitor_hash'] ?? '');
-				$dimensions = ['total' => 'all', 'referrer' => (string)($row['referrer_domain'] ?? '(direct)'), 'browser' => (string)$row['browser'], 'os' => (string)$row['os'], 'device' => (string)$row['device_type'], 'country' => (string)($row['country'] ?? 'Unknown'), 'region' => (string)($row['region'] ?? 'Unknown'), 'bot' => ((bool)$row['is_bot'] ? 'bot' : 'human'), 'authentication' => ($row['user_uid'] === null ? 'anonymous' : 'authenticated')];
+				$dimensions = ['total' => 'all'];
+				if (($row['outcome'] ?? '') !== 'counted') {
+					$dimensions += ['referrer' => (string)($row['referrer_domain'] ?? '(direct)'), 'browser' => (string)$row['browser'], 'os' => (string)$row['os'], 'device' => (string)$row['device_type'], 'country' => (string)($row['country'] ?? 'Unknown'), 'region' => (string)($row['region'] ?? 'Unknown'), 'bot' => ((bool)$row['is_bot'] ? 'bot' : 'human'), 'authentication' => ($row['user_uid'] === null ? 'anonymous' : 'authenticated')];
+				}
 				foreach ($dimensions as $dimension => $value) {
 					$key = $linkId . '|' . $dimension . '|' . str_replace('|', '/', $value);
 					$buckets[$key] ??= ['clicks' => 0, 'visitors' => []];

@@ -2,7 +2,9 @@ openapi: 3.0.3
 info:
   title: Shortlinks OCS API
   version: 1.0.0
-  description: Authenticated, versioned API for the Shortlinks Nextcloud app. Send `OCS-APIRequest: true` and request JSON.
+  description: >-
+    Authenticated, versioned API for the Shortlinks Nextcloud app. Send
+    `OCS-APIRequest: true` and request JSON.
 servers:
   - url: /ocs/v2.php/apps/shortlinks/api/v1
 security:
@@ -26,6 +28,10 @@ paths:
         - {name: search, in: query, schema: {type: string, maxLength: 255}}
         - {name: system, in: query, schema: {type: string, enum: [all, favorites, recent, used, expired, inactive, trash]}}
         - {name: folderId, in: query, schema: {type: integer, format: int64, nullable: true}}
+        - {name: tagIds, in: query, schema: {type: array, maxItems: 10, items: {type: integer, format: int64}}}
+        - {name: tagMode, in: query, schema: {type: string, enum: [and, or], default: and}}
+        - {name: sort, in: query, schema: {type: string, enum: [created_at, updated_at, last_clicked_at, click_count, title, slug]}}
+        - {name: direction, in: query, schema: {type: string, enum: [ASC, DESC], default: DESC}}
       responses:
         '200': {$ref: '#/components/responses/Success'}
     post:
@@ -34,7 +40,7 @@ paths:
       requestBody: {$ref: '#/components/requestBodies/CreateLink'}
       responses:
         '201': {$ref: '#/components/responses/Success'}
-        '400': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
         '409': {$ref: '#/components/responses/Error'}
         '429': {$ref: '#/components/responses/Error'}
   /links/{id}:
@@ -197,6 +203,17 @@ paths:
         - $ref: '#/components/parameters/Id'
         - {name: shareId, in: path, required: true, schema: {type: integer, format: int64}}
       responses: {'204': {description: Deleted}}
+  /principals:
+    get:
+      tags: [shares]
+      summary: Search enabled Nextcloud users and groups for sharing
+      parameters:
+        - {name: search, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 100}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '422': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
   /stats:
     get:
       tags: [statistics]
@@ -213,13 +230,31 @@ paths:
         - $ref: '#/components/parameters/Id'
         - {name: from, in: query, schema: {type: integer, format: int64}}
         - {name: to, in: query, schema: {type: integer, format: int64}}
-        - {name: bot, in: query, schema: {type: string, enum: [all, include, exclude]}}
+        - {$ref: '#/components/parameters/Granularity'}
+        - {name: compare, in: query, schema: {type: boolean, default: true}}
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+  /links/{id}/stats/export:
+    get:
+      tags: [statistics]
+      summary: Export privacy-reduced link statistics as CSV or JSON
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - {name: format, in: query, schema: {type: string, enum: [csv, json], default: json}}
+        - {name: from, in: query, schema: {type: integer, format: int64}}
+        - {name: to, in: query, schema: {type: integer, format: int64}}
+        - {$ref: '#/components/parameters/Granularity'}
       responses: {'200': {$ref: '#/components/responses/Success'}}
   /links/{id}/clicks:
     get:
       tags: [statistics]
       summary: Paginated raw event log for a visible link
-      parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/PerPage'}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PerPage'}
+        - {name: from, in: query, schema: {type: integer, format: int64}}
+        - {name: to, in: query, schema: {type: integer, format: int64}}
+        - {name: bot, in: query, schema: {type: boolean, nullable: true}}
       responses: {'200': {$ref: '#/components/responses/Success'}}
   /links/{id}/activity:
     get:
@@ -231,7 +266,16 @@ paths:
     get:
       tags: [tools]
       summary: Export visible links as bounded CSV or JSON
-      parameters: [{name: format, in: query, schema: {type: string, enum: [csv, json], default: json}}]
+      parameters:
+        - {name: format, in: query, schema: {type: string, enum: [csv, json], default: json}}
+        - {name: system, in: query, schema: {type: string, default: all}}
+        - {name: folderId, in: query, schema: {type: integer, format: int64, nullable: true}}
+        - {name: tagIds, in: query, schema: {type: array, maxItems: 10, items: {type: integer, format: int64}}}
+        - {name: tagMode, in: query, schema: {type: string, enum: [and, or], default: and}}
+        - {name: search, in: query, schema: {type: string, maxLength: 255}}
+        - {name: createdFrom, in: query, schema: {type: integer, format: int64}}
+        - {name: createdTo, in: query, schema: {type: integer, format: int64}}
+        - {name: active, in: query, schema: {type: boolean, nullable: true}}
       responses: {'200': {$ref: '#/components/responses/Success'}}
   /import/links:
     post:
@@ -240,7 +284,7 @@ paths:
       requestBody: {$ref: '#/components/requestBodies/FreeObject'}
       responses:
         '201': {$ref: '#/components/responses/Success'}
-        '413': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
         '429': {$ref: '#/components/responses/Error'}
   /tools/bookmarklet:
     get:
@@ -267,9 +311,10 @@ components:
     cookieAuth: {type: apiKey, in: cookie, name: nc_session_id}
   parameters:
     Id: {name: id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
-    Slug: {name: slug, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_-]+$', minLength: 1, maxLength: 64}}
+    Slug: {name: slug, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_-]+$', minLength: 1, maxLength: 128}}
     Page: {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
     PerPage: {name: perPage, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+    Granularity: {name: granularity, in: query, schema: {type: string, enum: [hour, day, week, month], default: day}}
   requestBodies:
     CreateLink:
       required: true
@@ -302,7 +347,7 @@ components:
       additionalProperties: false
       properties:
         targetUrl: {type: string, format: uri, maxLength: 8192}
-        slug: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 64}
+        slug: {type: string, pattern: '^[A-Za-z0-9_-]+$', maxLength: 128}
         title: {type: string, maxLength: 255}
         description: {type: string, nullable: true, maxLength: 10000}
         folderId: {type: integer, format: int64, nullable: true}

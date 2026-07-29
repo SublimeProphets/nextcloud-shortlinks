@@ -6,6 +6,7 @@ namespace OCA\Shortlinks\Tests\Unit\Service;
 
 use OCA\Shortlinks\Exception\ValidationException;
 use OCA\Shortlinks\Service\SettingsService;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -19,7 +20,7 @@ final class SettingsServiceTest extends TestCase {
 		$config->expects(self::never())->method('setValueArray');
 		$config->expects(self::never())->method('setValueString');
 		$this->expectException(ValidationException::class);
-		(new SettingsService($config))->save($values);
+		(new SettingsService($config, $this->createStub(ITimeFactory::class)))->save($values);
 	}
 
 	/** @return list<array{array<string,mixed>}> */
@@ -37,7 +38,7 @@ final class SettingsServiceTest extends TestCase {
 		$config = $this->config();
 		$config->expects(self::once())->method('setValueInt')->with('shortlinks', 'max_links_per_user', 250);
 		$config->expects(self::exactly(2))->method('setValueArray');
-		(new SettingsService($config))->save(['max_links_per_user' => 250]);
+		(new SettingsService($config, $this->createStub(ITimeFactory::class)))->save(['max_links_per_user' => 250]);
 	}
 
 	private function config(): IAppConfig {

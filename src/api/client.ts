@@ -1,6 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateOcsUrl, generateUrl } from '@nextcloud/router'
-import type { ActivityEntry, ApiEnvelope, Folder, LinkDraft, LinkShare, LinkStats, Pagination, ShortLink, Tag } from '../types'
+import type { ActivityEntry, ApiEnvelope, ClickEntry, Folder, LinkDraft, LinkShare, LinkStats, Pagination, Principal, ShortLink, StatsOverview, Tag } from '../types'
 
 interface OcsResponse<T> { ocs: { data: ApiEnvelope<T> } }
 
@@ -38,14 +38,18 @@ export const api = {
 	updateTag: (id: number, name: string, color: string | null = null) => request<Tag>('PATCH', `/tags/${id}`, { name, color }),
 	mergeTag: (id: number, targetId: number) => request<Record<string, never>>('POST', `/tags/${id}/merge`, { targetId }),
 	deleteTag: (id: number) => request<Record<string, never>>('DELETE', `/tags/${id}`),
-	stats: (id: number) => request<LinkStats>('GET', `/links/${id}/stats`),
-	exportStats: (id: number, format: 'csv' | 'json') => request<{ filename: string; mimeType: string; content: string }>('GET', `/links/${id}/stats/export`, undefined, { format }),
+	statsOverview: (params: Record<string, unknown> = {}) => request<StatsOverview>('GET', '/stats', undefined, params),
+	stats: (id: number, params: Record<string, unknown> = {}) => request<LinkStats>('GET', `/links/${id}/stats`, undefined, params),
+	exportStats: (id: number, format: 'csv' | 'json', params: Record<string, unknown> = {}) => request<{ filename: string; mimeType: string; content: string }>('GET', `/links/${id}/stats/export`, undefined, { format, ...params }),
+	clicks: (id: number, params: Record<string, unknown> = {}) => request<{ items: ClickEntry[]; pagination: Pagination }>('GET', `/links/${id}/clicks`, undefined, params),
 	activity: (id: number) => request<{ items: ActivityEntry[] }>('GET', `/links/${id}/activity`),
 	shares: (id: number) => request<LinkShare[]>('GET', `/links/${id}/shares`),
 	createShare: (id: number, data: Record<string, unknown>) => request<Record<string, unknown>>('POST', `/links/${id}/shares`, data),
 	deleteShare: (id: number, shareId: number) => request<Record<string, never>>('DELETE', `/links/${id}/shares/${shareId}`),
-	exportLinks: (format: 'csv' | 'json') => request<{ filename: string; mimeType: string; content: string }>('GET', '/export/links', undefined, { format }),
+	exportLinks: (format: 'csv' | 'json', filters: Record<string, unknown> = {}) => request<{ filename: string; mimeType: string; content: string }>('GET', '/export/links', undefined, { format, ...filters }),
 	importLinks: (format: 'csv' | 'json', content: string, dryRun: boolean, conflict: string) => request<Record<string, unknown>>('POST', '/import/links', { format, content, dryRun, conflict }),
 	bookmarklet: () => request<{ code: string; mobileAlternative: string }>('GET', '/tools/bookmarklet'),
+	fetchTitle: (targetUrl: string) => request<{ title: string }>('POST', '/tools/title', { targetUrl }),
+	searchPrincipals: (search: string) => request<Principal[]>('GET', '/principals', undefined, { search, limit: 20 }),
 	qrUrl: (id: number, format: 'svg' | 'png' = 'svg') => generateUrl('/apps/shortlinks/qr/{id}', { id }) + `?format=${format}`,
 }

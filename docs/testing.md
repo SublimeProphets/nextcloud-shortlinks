@@ -8,6 +8,7 @@ composer lint
 composer cs:check
 composer psalm
 composer test:unit
+composer test:integration
 composer audit
 corepack pnpm lint
 corepack pnpm stylelint
@@ -17,7 +18,7 @@ corepack pnpm build
 corepack pnpm audit --audit-level high
 ```
 
-Run Playwright against a seeded instance with `BASE_URL=http://localhost:8080 NEXTCLOUD_TEST_USER=alice NEXTCLOUD_TEST_PASSWORD=alice-dev-only pnpm test:e2e`. Browsers must first be installed with `pnpm exec playwright install`. The suite covers Chromium, Firefox and a mobile Chromium viewport; select one with `--project=chromium` when a smoke test is sufficient.
+Run Playwright against a seeded instance with `NEXTCLOUD_URL=http://localhost:8080 NEXTCLOUD_TEST_USER=alice NEXTCLOUD_TEST_PASSWORD=alice-dev-only pnpm test:e2e`. Browsers must first be installed with `pnpm exec playwright install`. The suite covers Chromium, Firefox and a mobile Chromium viewport; select one with `--project=chromium` when a smoke test is sufficient.
 
 Run the redirect smoke test with `k6 run -e BASE_URL=http://localhost:8080 -e SLUG=<known-alias> tests/performance/redirect-smoke.js`. Record CPU/RAM, database, Nextcloud/PHP version, virtualisation and event/statistics mode beside results. Thresholds are smoke guards, not production throughput claims.
 

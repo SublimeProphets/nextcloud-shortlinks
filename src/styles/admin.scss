@@ -3,3 +3,7 @@
 .shortlinks-admin-settings select { inline-size: 100%; }
 
 .shortlinks-admin-settings textarea { inline-size: 100%; min-block-size: 88px; padding: 8px; border: 1px solid var(--color-border-maxcontrast); border-radius: var(--border-radius); background: var(--color-main-background); color: var(--color-main-text); }
+
+.maintenance-actions { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+
+.maintenance-actions label { max-inline-size: 140px; }

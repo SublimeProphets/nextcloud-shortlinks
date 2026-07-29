@@ -49,6 +49,7 @@ final class ShareService {
 			if ($existing->getPurpose() === $purpose && $existing->getPrincipalType() === $type && $existing->getPrincipalId() === $principalId) {
 				$existing->setPermission($permission);
 				$this->permissions->update($existing);
+				$this->audit->record('permissions_changed', $link->getOwnerUid(), $link, ['shareId' => $existing->getId(), 'type' => $type, 'principalId' => $principalId, 'purpose' => $purpose, 'permission' => $permission]);
 				return $existing->toArray();
 			}
 		}

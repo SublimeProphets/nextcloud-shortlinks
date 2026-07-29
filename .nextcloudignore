@@ -1,7 +1,10 @@
 /.git
 /.github
+/.gitignore
 /.env
 /.env.example
+/.php-cs-fixer.cache
+/.php-cs-fixer.dist.php
 /build
 /coverage
 /docs/development.md
@@ -11,6 +14,9 @@
 /src
 /tests
 /vendor-bin
+/*.map
+/js/*.map
+/css/*.map
 /composer.json
 /composer.lock
 /compose.yaml
@@ -19,7 +25,10 @@
 /package.json
 /package-lock.json
 /playwright.config.ts
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
 /psalm.xml
 /stylelint.config.cjs
 /tsconfig.json
 /vite.config.ts
+/vitest.config.ts

@@ -7,6 +7,7 @@ namespace OCA\Shortlinks\Tests\Unit\Service;
 use OCA\Shortlinks\Service\ReferrerSanitizer;
 use OCA\Shortlinks\Service\SettingsService;
 use OCA\Shortlinks\Service\VisitorHasher;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -14,7 +15,8 @@ final class PrivacyTest extends TestCase {
 	public function testVisitorHashIsScopedByLinkAndDay(): void {
 		$config = $this->createMock(IAppConfig::class);
 		$config->method('getValueString')->willReturn('fixed-test-secret');
-		$settings = new SettingsService($config);
+		$time = $this->createStub(ITimeFactory::class);
+		$settings = new SettingsService($config, $time);
 		$hasher = new VisitorHasher($settings);
 		$one = $hasher->hash(1, 1720000000, '203.0.113.2', 'Fixture/1');
 		self::assertSame($one, $hasher->hash(1, 1720000000, '203.0.113.2', 'Fixture/1'));
@@ -32,5 +34,9 @@ final class PrivacyTest extends TestCase {
 		$sanitizer = new ReferrerSanitizer();
 		self::assertSame('direct', $sanitizer->sanitize('', 'cloud.example', 'domain')['type']);
 		self::assertSame('self', $sanitizer->sanitize('https://cloud.example/apps/files', 'cloud.example', 'domain')['type']);
+	}
+	public function testReferrerNeverReEmitsCredentialsOrFragments(): void {
+		$result = (new ReferrerSanitizer())->sanitize('https://user:password@example.test/path?safe=value#secret-fragment', 'cloud.example', 'full');
+		self::assertSame('https://example.test/path?safe=value', $result['url']);
 	}
 }

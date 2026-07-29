@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
@@ -9,15 +10,17 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
 
-const props = withDefaults(defineProps<{ folders: Folder[]; tags: Tag[]; redirectStatuses?: Array<301 | 302 | 307 | 308>; prefillUrl?: string; prefillTitle?: string; link?: ShortLink }>(), {
+const props = withDefaults(defineProps<{ folders: Folder[]; tags: Tag[]; redirectStatuses?: Array<301 | 302 | 307 | 308>; prefillUrl?: string; prefillTitle?: string; link?: ShortLink; allowTitleFetch?: boolean }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	prefillUrl: '',
 	prefillTitle: '',
 	link: undefined,
+	allowTitleFetch: false,
 })
 const emit = defineEmits<{ close: []; save: [draft: Partial<LinkDraft>] }>()
 const draft = reactive<LinkDraft>({ targetUrl: props.link?.targetUrl ?? props.prefillUrl ?? '', title: props.link?.title ?? props.prefillTitle ?? '', slug: props.link?.slug ?? '', description: props.link?.description ?? '', folderId: props.link?.folderId ?? null, tagIds: props.link?.tags.map(tag => tag.id) ?? [], active: props.link?.active ?? true, favorite: props.link?.favorite ?? false, accessMode: props.link?.accessMode ?? 'public', password: '', redirectStatus: props.link?.redirectStatus ?? 302, startsAt: props.link?.startsAt ?? null, expiresAt: props.link?.expiresAt ?? null, clickLimit: props.link?.clickLimit ?? null })
 const checking = ref(false); const aliasMessage = ref('')
+const fetchingTitle = ref(false); const newTagName = ref(''); const availableTags = ref<Tag[]>([...props.tags])
 const accessModes: Array<{ value: AccessMode; label: string }> = [{ value: 'public', label: 'Public/unlisted' }, { value: 'authenticated', label: 'Signed-in users' }, { value: 'users', label: 'Selected users' }, { value: 'groups', label: 'Selected groups' }, { value: 'password', label: 'Password protected' }, { value: 'disabled', label: 'Disabled' }]
 const canSave = computed(() => /^https?:\/\//i.test(draft.targetUrl ?? '') && (draft.accessMode !== 'password' || Boolean(draft.password) || Boolean(props.link?.passwordProtected)))
 const startsAtLocal = computed({ get: () => toLocal(draft.startsAt), set: value => { draft.startsAt = toTimestamp(value) } })
@@ -31,6 +34,8 @@ async function checkAlias() { if (!draft.slug) { aliasMessage.value = ''; return
  * @param id Tag identifier to toggle
  */
 function toggleTag(id: number) { const values = draft.tagIds ?? []; draft.tagIds = values.includes(id) ? values.filter(value => value !== id) : [...values, id] }
+async function fetchTitle() { if (!draft.targetUrl) return; fetchingTitle.value = true; try { const result = await api.fetchTitle(draft.targetUrl); if (result.title) draft.title = result.title } catch (error) { showError(error instanceof Error ? error.message : String(error)) } finally { fetchingTitle.value = false } }
+async function createTag() { const name = newTagName.value.trim(); if (!name) return; try { const tag = await api.createTag(name); availableTags.value.push(tag); draft.tagIds = [...draft.tagIds, tag.id]; newTagName.value = '' } catch (error) { showError(error instanceof Error ? error.message : String(error)) } }
 function toLocal(timestamp: number | null): string { if (timestamp === null) return ''; const date = new Date(timestamp * 1000); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) }
 function toTimestamp(value: string): number | null { if (!value) return null; const milliseconds = new Date(value).getTime(); return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null }
 function submit() { const payload: Partial<LinkDraft> = { ...draft, tagIds: [...draft.tagIds] }; if (props.link && !payload.password) delete payload.password; emit('save', payload) }
@@ -49,16 +54,27 @@ function submit() { const payload: Partial<LinkDraft> = { ...draft, tagIds: [...
 				:loading="checking"
 				@blur="checkAlias" />
 			<NcTextField v-model="draft.title" :label="t('shortlinks', 'Title')" />
+			<NcButton v-if="allowTitleFetch"
+				type="button"
+				:disabled="fetchingTitle || !draft.targetUrl"
+				@click="fetchTitle">
+				{{ t('shortlinks', 'Fetch title') }}
+			</NcButton>
 			<NcTextArea v-model="draft.description" :label="t('shortlinks', 'Description')" />
 			<label>{{ t('shortlinks', 'Folder') }}<select v-model="draft.folderId"><option :value="null">{{ t('shortlinks', 'No folder') }}</option><option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option></select></label>
 			<fieldset>
-				<legend>{{ t('shortlinks', 'Tags') }}</legend><NcCheckboxRadioSwitch v-for="tag in tags"
+				<legend>{{ t('shortlinks', 'Tags') }}</legend><NcCheckboxRadioSwitch v-for="tag in availableTags"
 					:key="tag.id"
 					type="checkbox"
 					:model-value="draft.tagIds?.includes(tag.id)"
 					@update:model-value="toggleTag(tag.id)">
 					{{ tag.name }}
 				</NcCheckboxRadioSwitch>
+				<div class="inline-create">
+					<NcTextField v-model="newTagName" :label="t('shortlinks', 'Create tag')" /><NcButton type="button" :disabled="!newTagName.trim()" @click="createTag">
+						{{ t('shortlinks', 'Add') }}
+					</NcButton>
+				</div>
 			</fieldset>
 			<div class="form-grid">
 				<label>{{ t('shortlinks', 'Redirect') }}<select v-model="draft.redirectStatus"><option v-for="status in redirectStatuses" :key="status" :value="status">{{ status }}</option></select></label><label>{{ t('shortlinks', 'Access') }}<select v-model="draft.accessMode"><option v-for="mode in accessModes" :key="mode.value" :value="mode.value">{{ t('shortlinks', mode.label) }}</option></select></label>

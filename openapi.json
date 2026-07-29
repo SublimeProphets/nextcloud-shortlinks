@@ -2342,6 +2342,117 @@
                 }
             }
         },
+        "/ocs/v2.php/apps/shortlinks/api/v1/principals": {
+            "get": {
+                "operationId": "principals_api-index",
+                "summary": "Search enabled users and groups for the share chooser",
+                "tags": [
+                    "principals_api"
+                ],
+                "security": [
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search text (2-100 characters)",
+                        "schema": {
+                            "type": "string",
+                            "default": ""
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Maximum number of results",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64",
+                            "default": 20
+                        }
+                    },
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Matching users and groups",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Current user is not logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/ocs/v2.php/apps/shortlinks/api/v1/stats": {
             "get": {
                 "operationId": "stats_api-overview",
@@ -2505,6 +2616,24 @@
                         }
                     },
                     {
+                        "name": "granularity",
+                        "in": "query",
+                        "description": "Time-series granularity: hour, day, week, or month",
+                        "schema": {
+                            "type": "string",
+                            "default": "day"
+                        }
+                    },
+                    {
+                        "name": "compare",
+                        "in": "query",
+                        "description": "Include a comparison with the preceding period",
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    },
+                    {
                         "name": "OCS-APIRequest",
                         "in": "header",
                         "description": "Required to be true for the API request to pass",
@@ -2635,6 +2764,15 @@
                             "format": "int64",
                             "nullable": true,
                             "default": null
+                        }
+                    },
+                    {
+                        "name": "granularity",
+                        "in": "query",
+                        "description": "Time-series granularity: hour, day, week, or month",
+                        "schema": {
+                            "type": "string",
+                            "default": "day"
                         }
                     },
                     {
@@ -2782,6 +2920,16 @@
                         }
                     },
                     {
+                        "name": "bot",
+                        "in": "query",
+                        "description": "Optional bot classification filter",
+                        "schema": {
+                            "type": "boolean",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
                         "name": "OCS-APIRequest",
                         "in": "header",
                         "description": "Required to be true for the API request to pass",
@@ -2898,6 +3046,69 @@
                         "schema": {
                             "type": "integer",
                             "format": "int64",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
+                        "name": "tagIds[]",
+                        "in": "query",
+                        "description": "Tag identifiers",
+                        "schema": {
+                            "type": "array",
+                            "default": [],
+                            "items": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
+                        }
+                    },
+                    {
+                        "name": "tagMode",
+                        "in": "query",
+                        "description": "Tag matching mode: and or or",
+                        "schema": {
+                            "type": "string",
+                            "default": "and"
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search text",
+                        "schema": {
+                            "type": "string",
+                            "default": ""
+                        }
+                    },
+                    {
+                        "name": "createdFrom",
+                        "in": "query",
+                        "description": "Earliest creation timestamp",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
+                        "name": "createdTo",
+                        "in": "query",
+                        "description": "Latest creation timestamp",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "in": "query",
+                        "description": "Optional active-state filter",
+                        "schema": {
+                            "type": "boolean",
                             "nullable": true,
                             "default": null
                         }

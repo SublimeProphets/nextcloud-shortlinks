@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Shortlinks\Command;
 
 use OCA\Shortlinks\Service\StatsService;
+use OCP\AppFramework\Utility\ITimeFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -13,6 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class StatsRebuildCommand extends Command {
 	public function __construct(
 		private readonly StatsService $stats,
+		private readonly ITimeFactory $time,
 	) {
 		parent::__construct();
 	}
@@ -23,7 +25,7 @@ final class StatsRebuildCommand extends Command {
 		$days = max(1, min(365, (int)$input->getArgument('days')));
 		$total = 0;
 		for ($i = $days - 1; $i >= 0; --$i) {
-			$total += $this->stats->aggregateDay(gmdate('Y-m-d', time() - $i * 86400));
+			$total += $this->stats->aggregateDay(gmdate('Y-m-d', $this->time->getTime() - $i * 86400));
 		} $output->writeln("Rebuilt {$days} days from {$total} detailed events");
 		return self::SUCCESS;
 	}

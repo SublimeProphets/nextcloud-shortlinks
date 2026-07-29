@@ -12,9 +12,26 @@ export interface ShortLink {
 export interface Pagination { page: number; perPage: number; hasMore: number }
 export interface StatRow { day: string; clicks: number; uniqueVisitors: number }
 export interface DimensionRow { value: string; clicks: number; uniqueVisitors: number }
-export interface LinkStats { totalClicks: number; uniqueVisitors: number; timeSeries: StatRow[]; dimensions: Record<string, DimensionRow[]> }
+export interface LinkStats {
+	totalClicks: number; lifetimeClicks: number; uniqueVisitors: number; granularity: 'hour' | 'day' | 'week' | 'month'
+	timeSeries: StatRow[]; dimensions: Record<string, DimensionRow[]>
+	comparison: { from: number; to: number; clicks: number; changePercent: number | null } | null
+}
+export interface StatsOverview {
+	totalLinks: number; activeLinks: number; totalClicks: number; uniqueVisitors: number; clicksToday: number
+	clicks7Days: number; clicks30Days: number; periodClicks: number; dimensions: Record<string, DimensionRow[]>
+	topLinks: Array<{ id: number; slug: string; title: string; clicks: number }>
+	leastUsedLinks: Array<{ id: number; slug: string; title: string; clicks: number }>
+	newestLinks: Array<{ id: number; slug: string; title: string; clicks: number }>
+}
 export interface ActivityEntry { id: number; eventType: string; createdAt: number }
 export interface LinkShare { id: number; type: 'user' | 'group'; principalId: string; purpose: 'management' | 'access'; permission: 'view' | 'edit' }
+export interface Principal { type: 'user' | 'group'; id: string; label: string }
+export interface ClickEntry {
+	id: number; clickedAt: number; userUid: string | null; referrerType: string; referrerDomain: string | null
+	browser: string; browserVersion: string | null; os: string; osVersion: string | null; deviceType: string
+	country: string | null; region: string | null; isBot: boolean; outcome: string
+}
 export interface ApiEnvelope<T> { data: T | null; error: { code: string; message: string; fields?: Record<string, string> } | null }
 export interface LinkDraft {
 	targetUrl: string; slug: string; title: string; description: string; folderId: number | null; tagIds: number[]

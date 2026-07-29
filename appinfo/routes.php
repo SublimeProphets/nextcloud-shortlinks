@@ -10,6 +10,7 @@ return [
 		['name' => 'redirect#passwordSubmit', 'url' => '/r/{slug}/password', 'verb' => 'POST'],
 		['name' => 'qr#show', 'url' => '/qr/{id}', 'verb' => 'GET'],
 		['name' => 'admin_settings#save', 'url' => '/settings/admin', 'verb' => 'PUT'],
+		['name' => 'admin_settings#maintenance', 'url' => '/settings/admin/maintenance/{action}', 'verb' => 'POST'],
 		['name' => 'public_creation#shorten', 'url' => '/public/v1/shorten', 'verb' => 'POST'],
 	],
 	'ocs' => [
@@ -36,6 +37,7 @@ return [
 		['name' => 'shares_api#index', 'url' => '/api/v1/links/{id}/shares', 'verb' => 'GET'],
 		['name' => 'shares_api#create', 'url' => '/api/v1/links/{id}/shares', 'verb' => 'POST'],
 		['name' => 'shares_api#destroy', 'url' => '/api/v1/links/{id}/shares/{shareId}', 'verb' => 'DELETE'],
+		['name' => 'principals_api#index', 'url' => '/api/v1/principals', 'verb' => 'GET'],
 		['name' => 'stats_api#overview', 'url' => '/api/v1/stats', 'verb' => 'GET'],
 		['name' => 'stats_api#link', 'url' => '/api/v1/links/{id}/stats', 'verb' => 'GET'],
 		['name' => 'stats_api#export', 'url' => '/api/v1/links/{id}/stats/export', 'verb' => 'GET'],

@@ -6,7 +6,9 @@ namespace OCA\Shortlinks\Service;
 
 use OCA\Shortlinks\AppInfo\Application;
 use OCA\Shortlinks\Exception\ValidationException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IAppConfig;
+use OCP\IUserManager;
 
 final class SettingsService {
 	public const DEFAULTS = [
@@ -27,6 +29,8 @@ final class SettingsService {
 
 	public function __construct(
 		private readonly IAppConfig $config,
+		private readonly ITimeFactory $time,
+		private readonly ?IUserManager $users = null,
 	) {
 	}
 
@@ -147,6 +151,9 @@ final class SettingsService {
 		if ($candidate['user_deletion_mode'] !== 'retain') {
 			throw new ValidationException('Invalid account deletion mode', ['userDeletionMode' => 'invalid']);
 		}
+		if ((bool)$candidate['public_creation'] && ((string)$candidate['public_owner_uid'] === '' || ($this->users !== null && $this->users->get((string)$candidate['public_owner_uid']) === null))) {
+			throw new ValidationException('Public creation requires an existing owner UID', ['publicOwnerUid' => 'invalid']);
+		}
 		$schemes = array_values(array_unique(array_map('strtolower', (array)$candidate['allowed_schemes'])));
 		if ($schemes === [] || array_diff($schemes, ['http', 'https']) !== []) {
 			throw new ValidationException('Only HTTP and HTTPS URL schemes are supported', ['allowedSchemes' => 'invalid']);
@@ -240,14 +247,14 @@ final class SettingsService {
 		if ($secret === '') {
 			$secret = base64_encode(random_bytes(32));
 			$this->config->setValueString(Application::APP_ID, 'visitor_secret', $secret, true, true);
-			$this->config->setValueInt(Application::APP_ID, 'visitor_secret_rotated_at', time(), true, true);
+			$this->config->setValueInt(Application::APP_ID, 'visitor_secret_rotated_at', $this->time->getTime(), true, true);
 		}
 		return $secret;
 	}
 
 	public function rotateVisitorSecret(): void {
 		$this->config->setValueString(Application::APP_ID, 'visitor_secret', base64_encode(random_bytes(32)), true, true);
-		$this->config->setValueInt(Application::APP_ID, 'visitor_secret_rotated_at', time(), true, true);
+		$this->config->setValueInt(Application::APP_ID, 'visitor_secret_rotated_at', $this->time->getTime(), true, true);
 	}
 
 	/** @return array<string, mixed> */

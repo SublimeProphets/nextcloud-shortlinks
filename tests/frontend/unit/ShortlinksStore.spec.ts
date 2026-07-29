@@ -1,22 +1,48 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShortLink } from '../../../src/types'
 
+import { useShortlinks } from '../../../src/stores/useShortlinks'
+
 const { apiMock } = vi.hoisted(() => ({
 	apiMock: {
-		listLinks: vi.fn(), listFolders: vi.fn(), listTags: vi.fn(), createLink: vi.fn(), updateLink: vi.fn(),
-		deleteLink: vi.fn(), restoreLink: vi.fn(), bulk: vi.fn(),
+		listLinks: vi.fn(),
+		listFolders: vi.fn(),
+		listTags: vi.fn(),
+		createLink: vi.fn(),
+		updateLink: vi.fn(),
+		deleteLink: vi.fn(),
+		restoreLink: vi.fn(),
+		bulk: vi.fn(),
 	},
 }))
 vi.mock('../../../src/api/client', () => ({ api: apiMock }))
 
-import { useShortlinks } from '../../../src/stores/useShortlinks'
-
 const link = (id: number): ShortLink => ({
-	id, ownerUid: 'alice', folderId: null, slug: `link-${id}`, shortUrl: `https://cloud.test/r/link-${id}`,
-	targetUrl: 'https://example.com', title: `Link ${id}`, description: null, favorite: false, active: true,
-	accessMode: 'public', passwordProtected: false, redirectStatus: 302, startsAt: null, expiresAt: null,
-	clickLimit: null, clickCount: 0, lastClickedAt: null, createdAt: 1, updatedAt: 1, deletedAt: null,
-	version: 1, tags: [], canEdit: true, canShare: true,
+	id,
+	ownerUid: 'alice',
+	folderId: null,
+	slug: `link-${id}`,
+	shortUrl: `https://cloud.test/r/link-${id}`,
+	targetUrl: 'https://example.com',
+	title: `Link ${id}`,
+	description: null,
+	favorite: false,
+	active: true,
+	accessMode: 'public',
+	passwordProtected: false,
+	redirectStatus: 302,
+	startsAt: null,
+	expiresAt: null,
+	clickLimit: null,
+	clickCount: 0,
+	lastClickedAt: null,
+	createdAt: 1,
+	updatedAt: 1,
+	deletedAt: null,
+	version: 1,
+	tags: [],
+	canEdit: true,
+	canShare: true,
 })
 
 describe('shortlinks store', () => {

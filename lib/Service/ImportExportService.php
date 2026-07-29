@@ -6,6 +6,7 @@ namespace OCA\Shortlinks\Service;
 
 use JsonException;
 use OCA\Shortlinks\Enum\AccessMode;
+use OCA\Shortlinks\Exception\ConflictException;
 use OCA\Shortlinks\Exception\ValidationException;
 use OCA\Shortlinks\Validator\TargetUrlValidatorInterface;
 
@@ -13,6 +14,8 @@ final class ImportExportService {
 	public function __construct(
 		private readonly LinkService $links,
 		private readonly TargetUrlValidatorInterface $urls,
+		private readonly FolderService $folders,
+		private readonly TagService $tags,
 	) {
 	}
 
@@ -26,6 +29,11 @@ final class ImportExportService {
 				break;
 			}
 		}
+		$folderPaths = $this->folderPaths();
+		foreach ($items as &$item) {
+			$item['folderPath'] = $item['folderId'] === null ? [] : ($folderPaths[(int)$item['folderId']] ?? []);
+		}
+		unset($item);
 		if ($format === 'json') {
 			return ['filename' => 'shortlinks.json', 'mimeType' => 'application/json', 'content' => json_encode(['version' => 1, 'links' => $items], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), 'count' => count($items)];
 		}
@@ -36,9 +44,9 @@ final class ImportExportService {
 		if ($stream === false) {
 			throw new \RuntimeException('Could not create export');
 		}
-		fputcsv($stream, ['slug', 'target_url', 'title', 'description', 'folder_id', 'tags', 'active', 'favorite', 'redirect_status', 'access_mode', 'starts_at', 'expires_at', 'click_limit', 'click_count', 'created_at']);
+		fputcsv($stream, ['slug', 'target_url', 'title', 'description', 'folder_path_json', 'tags_json', 'active', 'favorite', 'redirect_status', 'access_mode', 'starts_at', 'expires_at', 'click_limit', 'click_count', 'created_at']);
 		foreach ($items as $item) {
-			$row = [$item['slug'], $item['targetUrl'], $item['title'], $item['description'], $item['folderId'], implode('|', array_column($item['tags'], 'name')), $item['active'] ? '1' : '0', $item['favorite'] ? '1' : '0', $item['redirectStatus'], $item['accessMode'], $item['startsAt'], $item['expiresAt'], $item['clickLimit'], $item['clickCount'], $item['createdAt']];
+			$row = [$item['slug'], $item['targetUrl'], $item['title'], $item['description'], json_encode($item['folderPath'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), json_encode(array_column($item['tags'], 'name'), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $item['active'] ? '1' : '0', $item['favorite'] ? '1' : '0', $item['redirectStatus'], $item['accessMode'], $item['startsAt'], $item['expiresAt'], $item['clickLimit'], $item['clickCount'], $item['createdAt']];
 			fputcsv($stream, array_map([$this, 'csvSafe'], $row));
 		}
 		rewind($stream);
@@ -60,14 +68,46 @@ final class ImportExportService {
 		if (count($rows) > 5000) {
 			throw new ValidationException('Synchronous imports are limited to 5000 links', ['content' => 'too_many_rows']);
 		}
+		$folderCache = $dryRun ? [] : $this->folders->list();
+		$tagCache = $dryRun ? [] : $this->tags->list();
 		foreach ($rows as $index => $row) {
 			try {
-				$data = ['targetUrl' => (string)($row['target_url'] ?? $row['targetUrl'] ?? $row['url'] ?? ''), 'slug' => $conflict === 'new-alias' ? '' : (string)($row['slug'] ?? $row['keyword'] ?? ''), 'title' => (string)($row['title'] ?? ''), 'description' => ($row['description'] ?? null), 'active' => !isset($row['active']) || filter_var($row['active'], FILTER_VALIDATE_BOOL), 'favorite' => isset($row['favorite']) && filter_var($row['favorite'], FILTER_VALIDATE_BOOL), 'redirectStatus' => (int)($row['redirect_status'] ?? $row['redirectStatus'] ?? 302), 'accessMode' => (string)($row['access_mode'] ?? $row['accessMode'] ?? 'public')];
+				$folderPath = $this->folderPathFromRow($row);
+				$tagNames = $this->tagNamesFromRow($row);
+				$data = [
+					'targetUrl' => (string)($row['target_url'] ?? $row['targetUrl'] ?? $row['url'] ?? ''),
+					'slug' => (string)($row['slug'] ?? $row['keyword'] ?? ''),
+					'title' => (string)($row['title'] ?? ''),
+					'description' => ($row['description'] ?? null),
+					'active' => !isset($row['active']) || filter_var($row['active'], FILTER_VALIDATE_BOOL),
+					'favorite' => isset($row['favorite']) && filter_var($row['favorite'], FILTER_VALIDATE_BOOL),
+					'redirectStatus' => (int)($row['redirect_status'] ?? $row['redirectStatus'] ?? 302),
+					'accessMode' => (string)($row['access_mode'] ?? $row['accessMode'] ?? 'public'),
+					'startsAt' => $this->nullableInt($row['starts_at'] ?? $row['startsAt'] ?? null),
+					'expiresAt' => $this->nullableInt($row['expires_at'] ?? $row['expiresAt'] ?? null),
+					'clickLimit' => $this->nullableInt($row['click_limit'] ?? $row['clickLimit'] ?? null),
+					'initialClickCount' => $this->nonNegativeInt($row['click_count'] ?? $row['clickCount'] ?? $row['clicks'] ?? 0, 'click count'),
+					'createdAt' => $this->timestamp($row['created_at'] ?? $row['createdAt'] ?? $row['timestamp'] ?? null),
+				];
 				if ($dryRun) {
-					$this->validateDryRow($data);
+					$validationData = $data;
+					if ($conflict === 'new-alias' && trim($validationData['slug']) !== '' && !$this->links->isAliasAvailable($validationData['slug'])) {
+						$validationData['slug'] = '';
+					}
+					$this->validateDryRow($validationData, $folderPath, $tagNames);
 					++$result['created'];
 				} else {
-					$this->links->create($data);
+					$data['folderId'] = $this->resolveFolderPath($folderPath, $folderCache);
+					$data['tagIds'] = $this->resolveTagNames($tagNames, $tagCache);
+					try {
+						$this->links->create($data);
+					} catch (ConflictException $e) {
+						if ($conflict !== 'new-alias' || trim($data['slug']) === '' || !str_contains(strtolower($e->getMessage()), 'alias')) {
+							throw $e;
+						}
+						$data['slug'] = '';
+						$this->links->create($data);
+					}
 					++$result['created'];
 				}
 			} catch (\Throwable $e) {
@@ -121,7 +161,7 @@ final class ImportExportService {
 	}
 
 	/** @param array<string,mixed> $data */
-	private function validateDryRow(array $data): void {
+	private function validateDryRow(array $data, array $folderPath, array $tagNames): void {
 		$this->urls->validate((string)$data['targetUrl']);
 		$slug = trim((string)$data['slug']);
 		if ($slug !== '' && !$this->links->isAliasAvailable($slug)) {
@@ -133,5 +173,151 @@ final class ImportExportService {
 		if (AccessMode::tryFrom((string)$data['accessMode']) === null || $data['accessMode'] === AccessMode::Password->value) {
 			throw new ValidationException('Imported access mode is invalid or requires an interactive password', ['accessMode' => 'invalid']);
 		}
+		if ($data['startsAt'] !== null && $data['expiresAt'] !== null && $data['startsAt'] >= $data['expiresAt']) {
+			throw new ValidationException('Start time must precede expiry', ['expiresAt' => 'invalid']);
+		}
+		if ($data['clickLimit'] !== null && $data['clickLimit'] < 1) {
+			throw new ValidationException('Click limit must be positive', ['clickLimit' => 'invalid']);
+		}
+		foreach ($folderPath as $name) {
+			if ($name === '' || mb_strlen($name) > 128 || preg_match('/[\x00-\x1f\x7f]/u', $name) === 1) {
+				throw new ValidationException('Imported folder name is invalid', ['content' => 'invalid']);
+			}
+		}
+		foreach ($tagNames as $name) {
+			if ($name === '' || mb_strlen($name) > 64 || preg_match('/[\x00-\x1f\x7f]/u', $name) === 1) {
+				throw new ValidationException('Imported tag name is invalid', ['content' => 'invalid']);
+			}
+		}
+	}
+
+	private function nullableInt(mixed $value): ?int {
+		return $value === null || $value === '' ? null : (int)$value;
+	}
+
+	private function nonNegativeInt(mixed $value, string $field): int {
+		if ((!is_int($value) && !is_string($value)) || preg_match('/^\d+$/D', (string)$value) !== 1) {
+			throw new ValidationException('Imported ' . $field . ' is invalid', ['content' => 'invalid']);
+		}
+		return min((int)$value, PHP_INT_MAX);
+	}
+
+	private function timestamp(mixed $value): ?int {
+		if ($value === null || $value === '') {
+			return null;
+		}
+		if ((is_int($value) || is_string($value)) && preg_match('/^\d+$/D', (string)$value) === 1) {
+			return (int)$value;
+		}
+		if (!is_string($value) || ($timestamp = strtotime($value . ' UTC')) === false) {
+			throw new ValidationException('Imported creation time is invalid', ['content' => 'invalid']);
+		}
+		return $timestamp;
+	}
+
+	/** @return array<int,list<string>> */
+	private function folderPaths(): array {
+		$folders = $this->folders->list();
+		$byId = [];
+		foreach ($folders as $folder) {
+			$byId[(int)$folder['id']] = $folder;
+		}
+		$paths = [];
+		foreach (array_keys($byId) as $id) {
+			$path = [];
+			$current = $id;
+			$visited = [];
+			$depth = 0;
+			while (isset($byId[$current]) && !isset($visited[$current]) && $depth < 10) {
+				$visited[$current] = true;
+				array_unshift($path, (string)$byId[$current]['name']);
+				$current = (int)($byId[$current]['parentId'] ?? 0);
+				++$depth;
+			}
+			$paths[$id] = $path;
+		}
+		return $paths;
+	}
+
+	/** @param array<string,mixed> $row @return list<string> */
+	private function folderPathFromRow(array $row): array {
+		$value = $row['folder_path_json'] ?? $row['folderPath'] ?? [];
+		if (is_string($value)) {
+			try {
+				$value = json_decode($value, true, 16, JSON_THROW_ON_ERROR);
+			} catch (JsonException) {
+				throw new ValidationException('Folder path is malformed', ['content' => 'invalid']);
+			}
+		}
+		if (!is_array($value)) {
+			throw new ValidationException('Folder path must be an array', ['content' => 'invalid']);
+		}
+		return array_values(array_map(static fn (mixed $name): string => trim((string)$name), array_slice($value, 0, 10)));
+	}
+
+	/** @param array<string,mixed> $row @return list<string> */
+	private function tagNamesFromRow(array $row): array {
+		$value = $row['tags_json'] ?? $row['tags'] ?? [];
+		if (is_string($value)) {
+			try {
+				$decoded = json_decode($value, true, 16, JSON_THROW_ON_ERROR);
+				$value = is_array($decoded) ? $decoded : [];
+			} catch (JsonException) {
+				$value = array_filter(array_map('trim', explode('|', $value)));
+			}
+		}
+		if (!is_array($value)) {
+			throw new ValidationException('Tags must be an array', ['content' => 'invalid']);
+		}
+		$names = [];
+		foreach (array_slice($value, 0, 50) as $tag) {
+			$name = trim((string)(is_array($tag) ? ($tag['name'] ?? '') : $tag));
+			if ($name !== '') {
+				$names[mb_strtolower($name)] = $name;
+			}
+		}
+		return array_values($names);
+	}
+
+	/** @param list<string> $path @param list<array<string,mixed>> $cache */
+	private function resolveFolderPath(array $path, array &$cache): ?int {
+		$parentId = null;
+		foreach ($path as $name) {
+			$match = null;
+			foreach ($cache as $folder) {
+				if (($folder['parentId'] ?? null) === $parentId && mb_strtolower((string)$folder['name']) === mb_strtolower($name)) {
+					$match = (int)$folder['id'];
+					break;
+				}
+			}
+			if ($match === null) {
+				$created = $this->folders->create($name, $parentId);
+				$cache[] = $created;
+				$match = (int)$created['id'];
+			}
+			$parentId = $match;
+		}
+		return $parentId;
+	}
+
+	/** @param list<string> $names @param list<array<string,mixed>> $cache @return list<int> */
+	private function resolveTagNames(array $names, array &$cache): array {
+		$ids = [];
+		foreach ($names as $name) {
+			$id = null;
+			foreach ($cache as $tag) {
+				if (mb_strtolower((string)$tag['name']) === mb_strtolower($name)) {
+					$id = (int)$tag['id'];
+					break;
+				}
+			}
+			if ($id === null) {
+				$created = $this->tags->create($name, null);
+				$cache[] = $created;
+				$id = (int)$created['id'];
+			}
+			$ids[] = $id;
+		}
+		return $ids;
 	}
 }

@@ -9,8 +9,8 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { Folder, ShortLink, Tag } from '../types'
 
-defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string }>()
-const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number]; refresh: []; search: [query: string]; bulk: [changes: Record<string, unknown>]; more: [] }>()
+const props = defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string; folderId: number | null; tagIds: number[]; sort: string; direction: 'ASC' | 'DESC'; tagMode: 'and' | 'or' }>()
+const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number]; refresh: []; search: [query: string]; bulk: [changes: Record<string, unknown>]; more: []; overview: []; options: [value: { sort?: string; direction?: 'ASC' | 'DESC'; tagMode?: 'and' | 'or' }] }>()
 const query = ref('')
 const bulkFolderId = ref<number | null>(null); const bulkTagId = ref<number | null>(null)
 const bookmarklet = ref('')
@@ -27,7 +27,7 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 async function restore(link: ShortLink) { try { await api.restoreLink(link.id); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 async function removePermanently(link: ShortLink) { if (!window.confirm(t('shortlinks', 'Permanently delete this link?'))) return; try { await api.deleteLink(link.id, true); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 async function clone(link: ShortLink) { try { await api.cloneLink(link.id); showSuccess(t('shortlinks', 'Link duplicated')); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
-async function exportLinks(format: 'csv' | 'json') { try { const result = await api.exportLinks(format); const url = URL.createObjectURL(new Blob([result.content], { type: result.mimeType })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.filename; anchor.click(); URL.revokeObjectURL(url) } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+async function exportLinks(format: 'csv' | 'json') { try { const result = await api.exportLinks(format, { system: props.system, folderId: props.folderId ?? undefined, tagIds: props.tagIds, tagMode: props.tagMode, search: query.value }); const url = URL.createObjectURL(new Blob([result.content], { type: result.mimeType })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.filename; anchor.click(); URL.revokeObjectURL(url) } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 async function importFile(event: Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; try { if (file.size > 5 * 1024 * 1024) throw new Error(t('shortlinks', 'Import files are limited to 5 MiB')); const format = file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv'; const content = await file.text(); const preview = await api.importLinks(format, content, true, 'skip') as { created?: number; errors?: unknown[] }; if (!window.confirm(t('shortlinks', 'The dry run found {count} valid rows. Continue with import?', { count: preview.created ?? 0 }))) return; const result = await api.importLinks(format, content, false, 'skip') as { created?: number }; showSuccess(t('shortlinks', 'Imported {count} links', { count: result.created ?? 0 })); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } finally { input.value = '' } }
 async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmarklet()).code } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 </script>
@@ -45,6 +45,8 @@ async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmark
 				{{ t('shortlinks', 'Export CSV') }}
 			</NcButton><NcButton @click="exportLinks('json')">
 				{{ t('shortlinks', 'Export JSON') }}
+			</NcButton><NcButton @click="emit('overview')">
+				{{ t('shortlinks', 'Statistics overview') }}
 			</NcButton><label class="file-button">{{ t('shortlinks', 'Import CSV or JSON') }}<input type="file" accept=".csv,.json,text/csv,application/json" @change="importFile"></label><NcButton @click="loadBookmarklet">
 				{{ t('shortlinks', 'Bookmarklet') }}
 			</NcButton><a v-if="bookmarklet"
@@ -52,6 +54,11 @@ async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmark
 				class="bookmarklet"
 				draggable="true">{{ t('shortlinks', 'Drag Shortlinks to your bookmarks') }}</a>
 		</header>
+		<div class="list-options">
+			<label>{{ t('shortlinks', 'Sort by') }}<select :value="sort" @change="emit('options', { sort: ($event.target as HTMLSelectElement).value })"><option value="updated_at">{{ t('shortlinks', 'Updated') }}</option><option value="created_at">{{ t('shortlinks', 'Created') }}</option><option value="last_clicked_at">{{ t('shortlinks', 'Last used') }}</option><option value="click_count">{{ t('shortlinks', 'Clicks') }}</option><option value="title">{{ t('shortlinks', 'Title') }}</option><option value="slug">{{ t('shortlinks', 'Alias') }}</option></select></label>
+			<label>{{ t('shortlinks', 'Direction') }}<select :value="direction" @change="emit('options', { direction: ($event.target as HTMLSelectElement).value as 'ASC' | 'DESC' })"><option value="DESC">{{ t('shortlinks', 'Descending') }}</option><option value="ASC">{{ t('shortlinks', 'Ascending') }}</option></select></label>
+			<label>{{ t('shortlinks', 'Tag matching') }}<select :value="tagMode" @change="emit('options', { tagMode: ($event.target as HTMLSelectElement).value as 'and' | 'or' })"><option value="and">{{ t('shortlinks', 'All selected tags') }}</option><option value="or">{{ t('shortlinks', 'Any selected tag') }}</option></select></label>
+		</div>
 		<div v-if="selected.size"
 			class="bulk-toolbar"
 			role="toolbar"

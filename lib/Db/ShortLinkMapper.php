@@ -60,9 +60,12 @@ final class ShortLinkMapper extends QBMapper {
 			->executeStatement();
 	}
 
-	public function findOwnerTarget(string $ownerUid, string $targetHash): ?ShortLink {
+	public function findOwnerTarget(string $ownerUid, string $targetHash, ?int $exceptId = null): ?ShortLink {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->tableName)->where($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))->andWhere($qb->expr()->eq('target_hash', $qb->createNamedParameter($targetHash)))->andWhere($qb->expr()->isNull('deleted_at'))->setMaxResults(1);
+		if ($exceptId !== null) {
+			$qb->andWhere($qb->expr()->neq('id', $qb->createNamedParameter($exceptId, IQueryBuilder::PARAM_INT)));
+		}
 		try {
 			/** @var ShortLink */
 			return $this->findEntity($qb);
@@ -172,6 +175,15 @@ final class ShortLinkMapper extends QBMapper {
 		}
 		if (isset($filters['folderId']) && $filters['folderId'] !== '') {
 			$qb->andWhere($qb->expr()->eq('l.folder_id', $qb->createNamedParameter((int)$filters['folderId'], IQueryBuilder::PARAM_INT)));
+		}
+		if (isset($filters['createdFrom'])) {
+			$qb->andWhere($qb->expr()->gte('l.created_at', $qb->createNamedParameter(max(0, (int)$filters['createdFrom']), IQueryBuilder::PARAM_INT)));
+		}
+		if (isset($filters['createdTo'])) {
+			$qb->andWhere($qb->expr()->lte('l.created_at', $qb->createNamedParameter(max(0, (int)$filters['createdTo']), IQueryBuilder::PARAM_INT)));
+		}
+		if (isset($filters['active']) && is_bool($filters['active'])) {
+			$qb->andWhere($qb->expr()->eq('l.is_active', $qb->createNamedParameter($filters['active'], IQueryBuilder::PARAM_BOOL)));
 		}
 		$tagIds = array_values(array_slice(array_unique(array_filter(array_map('intval', (array)($filters['tagIds'] ?? [])), static fn (int $id): bool => $id > 0)), 0, 10));
 		if ($tagIds !== []) {

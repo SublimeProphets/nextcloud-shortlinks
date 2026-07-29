@@ -15,9 +15,15 @@ final class ClickEventMapper extends QBMapper {
 	}
 
 	/** @return list<ClickEvent> */
-	public function findForLink(int $linkId, int $from, int $to, int $limit, int $offset): array {
+	public function findForLink(int $linkId, int $from, int $to, int $limit, int $offset, bool $detailedOnly = false, ?bool $bot = null): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->tableName)->where($qb->expr()->eq('link_id', $qb->createNamedParameter($linkId, IQueryBuilder::PARAM_INT)))->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT)))->orderBy('clicked_at', 'DESC')->setMaxResults($limit)->setFirstResult($offset);
+		if ($detailedOnly) {
+			$qb->andWhere($qb->expr()->neq('outcome', $qb->createNamedParameter('counted')));
+		}
+		if ($bot !== null) {
+			$qb->andWhere($qb->expr()->eq('is_bot', $qb->createNamedParameter($bot, IQueryBuilder::PARAM_BOOL)));
+		}
 		/** @var list<ClickEvent> */
 		return $this->findEntities($qb);
 	}
