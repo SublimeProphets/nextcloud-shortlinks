@@ -24,7 +24,7 @@ const global = {
 describe('QuickLinkCreator', () => {
 	it('shows a generated editable alias and creates only after a URL is entered', async () => {
 		const create = vi.fn().mockResolvedValue(undefined)
-		const view = render(QuickLinkCreator, { props: { folders: [], tags: [], create, baseUrl: 'https://go.example' }, global })
+		const view = render(QuickLinkCreator, { props: { folders: [], tags: [], create, shortUrlTemplate: 'https://go.example/{alias}' }, global })
 		await vi.waitFor(() => expect(view.getByText('bright-link')).toBeTruthy())
 		const button = view.getByRole('button', { name: 'Create' }) as HTMLButtonElement
 		expect(button.disabled).toBe(true)

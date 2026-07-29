@@ -64,6 +64,22 @@ final class FoldersApiController extends AbstractApiOCSController {
 	}
 
 	/**
+	 * Copy a folder tree and its links
+	 *
+	 * @param int $id Folder identifier
+	 * @return DataResponse<Http::STATUS_CREATED, array<string, mixed>, array{}>
+	 *
+	 * 201: Folder copied
+	 */
+	#[NoAdminRequired]
+	public function copy(int $id): DataResponse {
+		return $this->respond(function () use ($id): array {
+			$p = $this->payload(['parentId']);
+			return $this->folders->copy($id, isset($p['parentId']) ? (int)$p['parentId'] : null);
+		}, Http::STATUS_CREATED);
+	}
+
+	/**
 	 * Reorder sibling folders
 	 *
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>

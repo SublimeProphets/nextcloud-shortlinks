@@ -20,7 +20,7 @@ final class ConfigurableAliasGenerator implements AliasGeneratorInterface {
 
 	public function generate(): string {
 		$mode = $this->settings->string('alias_mode');
-		if ($mode === 'random') {
+		if ($mode === 'random' || $mode === 'readable') {
 			return $this->randomAlias($this->settings->int('alias_length'));
 		}
 		$value = $this->nextSequence('sequential');

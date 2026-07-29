@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
-import { showError } from '@nextcloud/dialogs'
+import { computed, defineAsyncComponent, onMounted, reactive, ref } from 'vue'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
+import { t } from '@nextcloud/l10n'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -10,25 +11,30 @@ import ContentToolbar from './components/ContentToolbar.vue'
 import LinkList from './components/LinkList.vue'
 import Navigation from './components/Navigation.vue'
 import { useShortlinks } from './stores/useShortlinks'
-import type { FolderIcon, ShortLink } from './types'
+import type { Folder, FolderIcon, ShortLink } from './types'
 
 const store = useShortlinks()
 const AppSettingsDialog = defineAsyncComponent(() => import('./components/AppSettingsDialog.vue'))
-const BookmarkletDialog = defineAsyncComponent(() => import('./components/BookmarkletDialog.vue'))
 const DashboardView = defineAsyncComponent(() => import('./components/DashboardView.vue'))
+const FolderDeleteDialog = defineAsyncComponent(() => import('./components/FolderDeleteDialog.vue'))
+const FolderDestinationDialog = defineAsyncComponent(() => import('./components/FolderDestinationDialog.vue'))
 const FolderForm = defineAsyncComponent(() => import('./components/FolderForm.vue'))
 const LinkDetail = defineAsyncComponent(() => import('./components/LinkDetail.vue'))
 const LinkForm = defineAsyncComponent(() => import('./components/LinkForm.vue'))
 const StatsOverview = defineAsyncComponent(() => import('./components/StatsOverview.vue'))
 const TagForm = defineAsyncComponent(() => import('./components/TagForm.vue'))
 const capabilities = loadState<{ redirectStatuses: number[] }>('shortlinks', 'capabilities')
-const settings = loadState<{ titleFetch: boolean; allowedSchemes: string[]; baseUrl: string | null }>('shortlinks', 'settings')
+const settings = reactive(loadState<{ titleFetch: boolean; allowedSchemes: string[]; shortUrlTemplate: string | null }>('shortlinks', 'settings'))
 const showCreate = ref(false)
 const showFolderCreate = ref(false)
 const showTagCreate = ref(false)
 const showSettings = ref(false)
 const showStats = ref(false)
-const showBookmarklet = ref(false)
+const createFolderParentId = ref<number | null>(null)
+const createLinkFolderId = ref<number | null>(null)
+const destinationFolder = ref<Folder | null>(null)
+const destinationMode = ref<'move' | 'copy'>('move')
+const deletingFolder = ref<Folder | null>(null)
 const selectedLink = ref<ShortLink | null>(null)
 const editLink = ref<ShortLink | null>(null)
 const prefill = new URLSearchParams(location.search)
@@ -43,6 +49,69 @@ async function createFolder(value: { name: string; parentId: number | null; icon
 	try {
 		await api.createFolder(value.name, value.parentId, value.icon)
 		showFolderCreate.value = false
+		createFolderParentId.value = null
+		await store.refresh()
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	}
+}
+
+function openFolderCreate(parentId: number | null = null) {
+	createFolderParentId.value = parentId
+	showFolderCreate.value = true
+}
+
+function openLinkCreate(folderId: number | null = null) {
+	createLinkFolderId.value = folderId
+	showCreate.value = true
+}
+
+function openFolderDestination(folder: Folder, mode: 'move' | 'copy') {
+	destinationFolder.value = folder
+	destinationMode.value = mode
+}
+
+async function saveFolderDestination(parentId: number | null) {
+	if (!destinationFolder.value) return
+	try {
+		if (destinationMode.value === 'move') {
+			await api.updateFolder(destinationFolder.value.id, { parentId })
+			showSuccess(t('shortlinks', 'Folder moved'))
+		} else {
+			await api.copyFolder(destinationFolder.value.id, parentId)
+			showSuccess(t('shortlinks', 'Folder copied'))
+		}
+		destinationFolder.value = null
+		await store.refresh()
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	}
+}
+
+async function exportFolder(folder: Folder) {
+	try {
+		const folderIds = [folder.id]
+		for (let index = 0; index < folderIds.length; index++) {
+			store.state.folders.filter(item => item.parentId === folderIds[index]).forEach(item => folderIds.push(item.id))
+		}
+		const result = await api.exportLinks('json', { system: 'all', folderIds })
+		const url = URL.createObjectURL(new Blob([result.content], { type: result.mimeType }))
+		const anchor = document.createElement('a')
+		anchor.href = url
+		anchor.download = `${folder.name}-${result.filename}`
+		anchor.click()
+		URL.revokeObjectURL(url)
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	}
+}
+
+async function deleteFolder(deleteLinks: boolean) {
+	if (!deletingFolder.value) return
+	try {
+		await api.deleteFolder(deletingFolder.value.id, deleteLinks)
+		deletingFolder.value = null
+		showSuccess(t('shortlinks', 'Folder deleted'))
 		await store.refresh()
 	} catch (error) {
 		showError(error instanceof Error ? error.message : String(error))
@@ -69,7 +138,12 @@ async function createTag(value: { name: string; color: string | null }) {
 			:active-tag-ids="store.state.tagIds"
 			@filter="store.setFilter($event.system, $event.folderId)"
 			@tag="store.openTag($event)"
-			@bookmarklet="showBookmarklet = true"
+			@create-link="openLinkCreate($event)"
+			@create-folder="openFolderCreate($event)"
+			@move-folder="openFolderDestination($event, 'move')"
+			@copy-folder="openFolderDestination($event, 'copy')"
+			@export-folder="exportFolder($event)"
+			@delete-folder="deletingFolder = $event"
 			@settings="showSettings = true" />
 		<NcAppContent>
 			<ContentToolbar :folders="store.state.folders"
@@ -82,8 +156,8 @@ async function createTag(value: { name: string; color: string | null }) {
 				:created-from="store.state.createdFrom"
 				:active="store.state.active"
 				:list-mode="!isDashboard"
-				@create-link="showCreate = true"
-				@create-folder="showFolderCreate = true"
+				@create-link="openLinkCreate()"
+				@create-folder="openFolderCreate()"
 				@create-tag="showTagCreate = true"
 				@filter="store.setFilter($event.system, $event.folderId)"
 				@open-tag="store.openTag($event)"
@@ -96,7 +170,7 @@ async function createTag(value: { name: string; color: string | null }) {
 				:tags="store.state.tags"
 				:redirect-statuses="capabilities.redirectStatuses"
 				:allowed-schemes="settings.allowedSchemes"
-				:base-url="settings.baseUrl"
+				:short-url-template="settings.shortUrlTemplate"
 				:create="store.create" />
 			<LinkList v-else
 				:links="store.state.links"
@@ -126,32 +200,45 @@ async function createTag(value: { name: string; color: string | null }) {
 			:tags="store.state.tags"
 			:redirect-statuses="capabilities.redirectStatuses"
 			:allowed-schemes="settings.allowedSchemes"
-			:base-url="settings.baseUrl"
+			:short-url-template="settings.shortUrlTemplate"
 			:allow-title-fetch="settings.titleFetch"
 			:prefill-url="prefill.get('url') || ''"
 			:prefill-title="prefill.get('title') || ''"
-			@close="showCreate = false"
-			@save="store.create($event).then(() => showCreate = false)" />
+			:prefill-folder-id="createLinkFolderId"
+			@close="showCreate = false; createLinkFolderId = null"
+			@save="store.create($event).then(() => { showCreate = false; createLinkFolderId = null })" />
 		<LinkForm v-if="editLink"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
 			:redirect-statuses="capabilities.redirectStatuses"
 			:allowed-schemes="settings.allowedSchemes"
-			:base-url="settings.baseUrl"
+			:short-url-template="settings.shortUrlTemplate"
 			:allow-title-fetch="settings.titleFetch"
 			:link="editLink"
 			@close="editLink = null"
 			@save="store.update(editLink, $event).then(() => { editLink = null; selectedLink = null })" />
 		<FolderForm v-if="showFolderCreate"
 			:folders="store.state.folders"
-			@close="showFolderCreate = false"
+			:prefill-parent-id="createFolderParentId"
+			@close="showFolderCreate = false; createFolderParentId = null"
 			@save="createFolder" />
 		<TagForm v-if="showTagCreate" @close="showTagCreate = false" @save="createTag" />
 		<AppSettingsDialog v-model:open="showSettings"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
+			@settings-saved="settings.shortUrlTemplate = $event"
 			@changed="store.refresh()" />
-		<BookmarkletDialog v-if="showBookmarklet" @close="showBookmarklet = false" />
+		<FolderDestinationDialog v-if="destinationFolder"
+			:folder="destinationFolder"
+			:folders="store.state.folders"
+			:mode="destinationMode"
+			@close="destinationFolder = null"
+			@save="saveFolderDestination" />
+		<FolderDeleteDialog v-if="deletingFolder"
+			:folder="deletingFolder"
+			:folders="store.state.folders"
+			@close="deletingFolder = null"
+			@delete="deleteFolder" />
 		<StatsOverview v-if="showStats" @close="showStats = false" />
 	</NcContent>
 </template>

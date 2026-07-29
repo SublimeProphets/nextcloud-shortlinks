@@ -1,6 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateOcsUrl, generateUrl } from '@nextcloud/router'
-import type { ActivityEntry, ApiEnvelope, ClickEntry, Folder, LinkDraft, LinkShare, LinkStats, Pagination, Principal, ShortLink, StatsOverview, Tag } from '../types'
+import type { ActivityEntry, ApiEnvelope, ClickEntry, Folder, LinkDraft, LinkShare, LinkStats, Pagination, Principal, ShortLink, StatsOverview, Tag, UserSettings } from '../types'
 
 interface OcsResponse<T> { ocs: { data: ApiEnvelope<T> } }
 
@@ -35,10 +35,13 @@ export const api = {
 	cloneLink: (id: number) => request<ShortLink>('POST', `/links/${id}/clone`),
 	bulk: (ids: number[], changes: Record<string, unknown>) => request<{ updated: number }>('POST', '/links/bulk', { ids, changes }),
 	aliasAvailable: (slug: string) => request<{ slug: string; available: boolean }>('GET', `/aliases/${encodeURIComponent(slug)}`),
-	suggestAlias: () => request<{ slug: string }>('POST', '/aliases/suggest'),
+	suggestAlias: (context: { title?: string; targetUrl?: string } = {}) => request<{ slug: string }>('POST', '/aliases/suggest', context),
+	getUserSettings: () => request<UserSettings>('GET', '/user-settings'),
+	updateUserSettings: (settings: Pick<UserSettings, 'aliasStrategy' | 'collisionStrategy' | 'suffixLength' | 'urlMode' | 'baseUrl' | 'urlTemplate' | 'urlPattern' | 'urlReplacement'>) => request<UserSettings>('PUT', '/user-settings', settings),
 	listFolders: () => request<Folder[]>('GET', '/folders'),
 	createFolder: (name: string, parentId: number | null = null, icon = 'folder') => request<Folder>('POST', '/folders', { name, parentId, icon }),
 	updateFolder: (id: number, data: Partial<Folder>) => request<Folder>('PATCH', `/folders/${id}`, data),
+	copyFolder: (id: number, parentId: number | null) => request<Folder>('POST', `/folders/${id}/copy`, { parentId }),
 	reorderFolders: (parentId: number | null, ids: number[]) => request<Folder[]>('PUT', '/folders/order', { parentId, ids }),
 	deleteFolder: (id: number, deleteLinks = false) => request<Record<string, never>>('DELETE', `/folders/${id}`, undefined, { deleteLinks }),
 	listTags: () => request<Tag[]>('GET', '/tags'),

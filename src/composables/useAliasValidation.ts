@@ -68,12 +68,12 @@ export function useAliasValidation(alias: Ref<string>, currentAlias = '') {
 	const message = computed(() => aliasSyntaxError(alias.value) || serverMessage.value)
 	const valid = computed(() => !aliasSyntaxError(alias.value) && state.value === 'available')
 
-	async function suggest() {
+	async function suggest(context: { title?: string; targetUrl?: string } = {}) {
 		const requestedFor = alias.value
 		const activeSuggestion = ++suggestionId
 		state.value = 'checking'
 		try {
-			const suggestion = await api.suggestAlias()
+			const suggestion = await api.suggestAlias(context)
 			if (activeSuggestion !== suggestionId || alias.value !== requestedFor) return
 			alias.value = suggestion.slug
 			await check(alias.value)

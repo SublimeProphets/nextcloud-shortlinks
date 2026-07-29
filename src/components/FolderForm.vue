@@ -8,10 +8,10 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { folderIconOptions } from '../folderIcons'
 import type { Folder, FolderIcon } from '../types'
 
-const props = withDefaults(defineProps<{ folders: Folder[]; folder?: Folder }>(), { folder: undefined })
+const props = withDefaults(defineProps<{ folders: Folder[]; folder?: Folder; prefillParentId?: number | null }>(), { folder: undefined, prefillParentId: null })
 const emit = defineEmits<{ close: []; save: [value: { name: string; parentId: number | null; icon: FolderIcon }] }>()
 const name = ref(props.folder?.name ?? '')
-const parentId = ref<number | null>(props.folder?.parentId ?? null)
+const parentId = ref<number | null>(props.folder?.parentId ?? props.prefillParentId)
 const icon = ref<FolderIcon>(props.folder?.icon ?? 'folder')
 const descendants = computed(() => {
 	if (!props.folder) return new Set<number>()

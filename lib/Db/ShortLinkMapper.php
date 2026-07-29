@@ -46,6 +46,18 @@ final class ShortLinkMapper extends QBMapper {
 		return (int)$qb->executeQuery()->fetchOne();
 	}
 
+	/** @return list<ShortLink> */
+	public function findOwnedByFolder(int $folderId, string $ownerUid): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->tableName)
+			->where($qb->expr()->eq('folder_id', $qb->createNamedParameter($folderId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))
+			->andWhere($qb->expr()->isNull('deleted_at'))
+			->orderBy('created_at', 'ASC');
+		/** @var list<ShortLink> */
+		return $this->findEntities($qb);
+	}
+
 	public function purgeRelations(int $linkId): void {
 		foreach (['shortlinks_link_tags', 'shortlinks_permissions', 'shortlinks_clicks', 'shortlinks_daily_stats'] as $table) {
 			$qb = $this->db->getQueryBuilder();
@@ -173,7 +185,10 @@ final class ShortLinkMapper extends QBMapper {
 		} elseif ($system === 'used') {
 			$qb->andWhere($qb->expr()->isNotNull('l.last_clicked_at'));
 		}
-		if (isset($filters['folderId']) && $filters['folderId'] !== '') {
+		$folderIds = array_values(array_slice(array_unique(array_filter(array_map('intval', (array)($filters['folderIds'] ?? [])), static fn (int $id): bool => $id > 0)), 0, 200));
+		if ($folderIds !== []) {
+			$qb->andWhere($qb->expr()->in('l.folder_id', $qb->createNamedParameter($folderIds, IQueryBuilder::PARAM_INT_ARRAY)));
+		} elseif (isset($filters['folderId']) && $filters['folderId'] !== '') {
 			$qb->andWhere($qb->expr()->eq('l.folder_id', $qb->createNamedParameter((int)$filters['folderId'], IQueryBuilder::PARAM_INT)));
 		}
 		if (isset($filters['createdFrom'])) {

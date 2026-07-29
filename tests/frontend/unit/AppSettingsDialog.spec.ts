@@ -36,6 +36,7 @@ const global = {
 		NcActionButton: { props: ['name', 'disabled'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')">{{name}}</button>' },
 		FolderForm: true,
 		TagForm: true,
+		AliasUrlSettings: true,
 	},
 }
 

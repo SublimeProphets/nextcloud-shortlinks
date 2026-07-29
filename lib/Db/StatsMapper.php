@@ -13,6 +13,43 @@ final class StatsMapper {
 	) {
 	}
 
+	/**
+	 * Return bounded, privacy-safe activity signals used for ranking links.
+	 *
+	 * @param list<int> $linkIds
+	 * @return array<int,array{last24:int,last7:int,previous7:int,last30:int}>
+	 */
+	public function rankingSignals(array $linkIds, int $now): array {
+		$linkIds = array_values(array_unique(array_filter(array_map('intval', $linkIds), static fn (int $id): bool => $id > 0)));
+		$signals = [];
+		foreach ($linkIds as $id) {
+			$signals[$id] = ['last24' => 0, 'last7' => 0, 'previous7' => 0, 'last30' => 0];
+		}
+		$periods = [
+			'last24' => [$now - 86400, $now],
+			'last7' => [$now - 7 * 86400, $now],
+			'previous7' => [$now - 14 * 86400, $now - 7 * 86400],
+			'last30' => [$now - 30 * 86400, $now],
+		];
+		foreach (array_chunk($linkIds, 500) as $chunk) {
+			foreach ($periods as $key => [$from, $to]) {
+				$qb = $this->db->getQueryBuilder();
+				$qb->select('link_id')->selectAlias($qb->func()->count('id'), 'clicks')
+					->from('shortlinks_clicks')
+					->where($qb->expr()->in('link_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+					->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+					->andWhere($qb->expr()->lt('clicked_at', $qb->createNamedParameter(max(0, $to), IQueryBuilder::PARAM_INT)))
+					->groupBy('link_id');
+				$result = $qb->executeQuery();
+				while (($row = $result->fetch()) !== false) {
+					$signals[(int)$row['link_id']][$key] = (int)$row['clicks'];
+				}
+				$result->closeCursor();
+			}
+		}
+		return $signals;
+	}
+
 	/** @return array<string,mixed> */
 	public function overview(string $ownerUid, int $from, int $to, int $now): array {
 		$qb = $this->db->getQueryBuilder();

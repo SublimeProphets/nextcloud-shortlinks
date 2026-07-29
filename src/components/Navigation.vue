@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-	mdiBookmarkPlusOutline,
 	mdiCalendarRemoveOutline,
 	mdiCogOutline,
 	mdiCursorDefaultClickOutline,
@@ -10,6 +9,7 @@ import {
 	mdiStarOutline,
 	mdiTagOutline,
 	mdiTrashCanOutline,
+	mdiTrendingUp,
 	mdiViewDashboardOutline,
 } from '@mdi/js'
 import { t } from '@nextcloud/l10n'
@@ -17,32 +17,54 @@ import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
-import { folderIconPath } from '../folderIcons'
+import { computed, ref, watch } from 'vue'
 import type { Folder, Tag } from '../types'
+import FolderNavigationItem from './FolderNavigationItem.vue'
 
 const props = defineProps<{ folders: Folder[]; tags: Tag[]; activeSystem: string; activeFolderId: number | null; activeTagIds: number[] }>()
-const emit = defineEmits<{ filter: [value: { system: string; folderId: number | null }]; tag: [id: number]; bookmarklet: []; settings: [] }>()
+const emit = defineEmits<{
+	filter: [value: { system: string; folderId: number | null }]
+	tag: [id: number]
+	settings: []
+	createLink: [folderId: number]
+	createFolder: [parentId: number]
+	moveFolder: [folder: Folder]
+	copyFolder: [folder: Folder]
+	exportFolder: [folder: Folder]
+	deleteFolder: [folder: Folder]
+}>()
 const systemItems = [
 	{ id: 'dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline },
 	{ id: 'all', label: 'All links', icon: mdiLinkVariant },
 	{ id: 'favorites', label: 'Favorites', icon: mdiStarOutline },
+	{ id: 'trending', label: 'Trending links', icon: mdiTrendingUp },
 	{ id: 'recent', label: 'Recently created', icon: mdiHistory },
 	{ id: 'used', label: 'Recently used', icon: mdiCursorDefaultClickOutline },
 	{ id: 'expired', label: 'Expired', icon: mdiCalendarRemoveOutline },
 	{ id: 'inactive', label: 'Inactive', icon: mdiLinkOff },
-	{ id: 'trash', label: 'Trash', icon: mdiTrashCanOutline },
 ]
+const expandedIds = ref(new Set<number>())
+const rootFolders = computed(() => props.folders
+	.filter(folder => folder.parentId === null)
+	.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)))
 
-function folderName(folder: Folder): string {
-	let depth = 0
-	let parentId = folder.parentId
-	while (parentId !== null && depth < 10) {
-		const parent = props.folders.find(item => item.id === parentId)
-		if (!parent) break
-		depth++
-		parentId = parent.parentId
+watch([() => props.folders, () => props.activeFolderId], () => {
+	const next = new Set(expandedIds.value)
+	if (next.size === 0) rootFolders.value.forEach(folder => next.add(folder.id))
+	let current = props.activeFolderId
+	while (current !== null) {
+		const folder = props.folders.find(item => item.id === current)
+		if (!folder) break
+		if (folder.parentId !== null) next.add(folder.parentId)
+		current = folder.parentId
 	}
-	return `${'— '.repeat(depth)}${folder.name}`
+	expandedIds.value = next
+}, { immediate: true, deep: true })
+
+function toggleFolder(value: { id: number; open: boolean }) {
+	const next = new Set(expandedIds.value)
+	value.open ? next.add(value.id) : next.delete(value.id)
+	expandedIds.value = next
 }
 </script>
 
@@ -58,17 +80,23 @@ function folderName(folder: Folder): string {
 					<NcIconSvgWrapper :path="item.icon" />
 				</template>
 			</NcAppNavigationItem>
+
 			<NcAppNavigationCaption :name="t('shortlinks', 'Folders')" />
-			<NcAppNavigationItem v-for="folder in folders"
+			<FolderNavigationItem v-for="folder in rootFolders"
 				:key="folder.id"
-				:name="folderName(folder)"
-				:counter-number="folder.count"
-				:active="activeFolderId === folder.id"
-				@click="emit('filter', { system: 'all', folderId: folder.id })">
-				<template #icon>
-					<NcIconSvgWrapper :path="folderIconPath(folder.icon)" />
-				</template>
-			</NcAppNavigationItem>
+				:folder="folder"
+				:folders="folders"
+				:active-folder-id="activeFolderId"
+				:expanded-ids="expandedIds"
+				@select="emit('filter', { system: 'all', folderId: $event.id })"
+				@toggle="toggleFolder"
+				@create-link="emit('createLink', $event.id)"
+				@create-folder="emit('createFolder', $event.id)"
+				@move="emit('moveFolder', $event)"
+				@copy="emit('copyFolder', $event)"
+				@export="emit('exportFolder', $event)"
+				@delete="emit('deleteFolder', $event)" />
+
 			<NcAppNavigationCaption :name="t('shortlinks', 'Tags')" />
 			<NcAppNavigationItem v-for="tag in tags"
 				:key="tag.id"
@@ -80,12 +108,16 @@ function folderName(folder: Folder): string {
 					<NcIconSvgWrapper :path="mdiTagOutline" />
 				</template>
 			</NcAppNavigationItem>
-			<NcAppNavigationItem pinned :name="t('shortlinks', 'Create bookmarklet')" @click="emit('bookmarklet')">
+
+			<NcAppNavigationItem pinned
+				:name="t('shortlinks', 'Trash')"
+				:active="activeSystem === 'trash' && activeFolderId === null"
+				@click="emit('filter', { system: 'trash', folderId: null })">
 				<template #icon>
-					<NcIconSvgWrapper :path="mdiBookmarkPlusOutline" />
+					<NcIconSvgWrapper :path="mdiTrashCanOutline" />
 				</template>
 			</NcAppNavigationItem>
-			<NcAppNavigationItem pinned :name="t('shortlinks', 'App settings')" @click="emit('settings')">
+			<NcAppNavigationItem pinned :name="t('shortlinks', 'Settings')" @click="emit('settings')">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiCogOutline" />
 				</template>

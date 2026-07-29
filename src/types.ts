@@ -39,3 +39,21 @@ export interface LinkDraft {
 	favorite: boolean; active: boolean; accessMode: AccessMode; password: string; redirectStatus: number
 	startsAt: number | null; expiresAt: number | null; clickLimit: number | null
 }
+
+export interface UserSettings {
+	aliasStrategy: 'inherit' | 'random' | 'readable'
+	collisionStrategy: 'random' | 'numbered'
+	suffixLength: number
+	urlMode: 'inherit' | 'simple' | 'template' | 'regex'
+	baseUrl: string
+	urlTemplate: string
+	urlPattern: string
+	urlReplacement: string
+	allowAliasSettings: boolean
+	allowUrlSettings: boolean
+	globalAliasMode: string
+	globalUrlMode: string
+	previewAlias: string
+	previewUrl: string
+	shortUrlTemplate: string
+}

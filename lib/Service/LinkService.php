@@ -7,6 +7,7 @@ namespace OCA\Shortlinks\Service;
 use OCA\Shortlinks\Db\FolderMapper;
 use OCA\Shortlinks\Db\ShortLink;
 use OCA\Shortlinks\Db\ShortLinkMapper;
+use OCA\Shortlinks\Db\StatsMapper;
 use OCA\Shortlinks\Db\TagMapper;
 use OCA\Shortlinks\Enum\AccessMode;
 use OCA\Shortlinks\Event\BeforeLinkCreatedEvent;
@@ -18,7 +19,6 @@ use OCA\Shortlinks\Exception\ForbiddenException;
 use OCA\Shortlinks\Exception\NotFoundException;
 use OCA\Shortlinks\Exception\ValidationException;
 use OCA\Shortlinks\Policy\LinkPolicy;
-use OCA\Shortlinks\Provider\Alias\AliasGeneratorInterface;
 use OCA\Shortlinks\Validator\SlugValidator;
 use OCA\Shortlinks\Validator\TargetUrlValidatorInterface;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -35,9 +35,11 @@ final class LinkService {
 		private readonly LinkPolicy $policy,
 		private readonly SlugValidator $slugValidator,
 		private readonly TargetUrlValidatorInterface $urlValidator,
-		private readonly AliasGeneratorInterface $aliasGenerator,
+		private readonly AliasSuggestionService $aliasSuggestions,
 		private readonly LinkUrlService $linkUrls,
 		private readonly SettingsService $settings,
+		private readonly StatsMapper $stats,
+		private readonly LinkRankingService $ranking,
 		private readonly AuditService $audit,
 		private readonly IEventDispatcher $events,
 		private readonly ITimeFactory $time,
@@ -48,9 +50,23 @@ final class LinkService {
 	/** @param array<string, mixed> $filters @return array{items:list<array<string,mixed>>,pagination:array<string,int>} */
 	public function list(array $filters, int $page, int $perPage): array {
 		$uid = $this->policy->currentUid();
-		$filters['now'] = $this->time->getTime();
+		$now = $this->time->getTime();
+		$filters['now'] = $now;
 		$perPage = max(1, min(200, $perPage));
 		$page = max(1, $page);
+		$rankingMode = (string)($filters['system'] ?? 'all');
+		if (in_array($rankingMode, ['trending', 'top'], true)) {
+			$filters['system'] = 'all';
+			$filters['sort'] = 'click_count';
+			$filters['direction'] = 'DESC';
+			$candidates = $this->links->findVisible($uid, $this->policy->currentGroupIds(), $filters, 2000, 0, $this->policy->canManageAll());
+			$signals = $this->stats->rankingSignals(array_map(static fn (ShortLink $link): int => $link->getId(), $candidates), $now);
+			$entities = $this->ranking->rank($candidates, $signals, $rankingMode, $now);
+			$offset = ($page - 1) * $perPage;
+			$hasMore = count($entities) > $offset + $perPage;
+			$entities = array_slice($entities, $offset, $perPage);
+			return ['items' => array_map(fn (ShortLink $link): array => $this->serialize($link), $entities), 'pagination' => ['page' => $page, 'perPage' => $perPage, 'hasMore' => $hasMore ? 1 : 0]];
+		}
 		$entities = $this->links->findVisible($uid, $this->policy->currentGroupIds(), $filters, $perPage + 1, ($page - 1) * $perPage, $this->policy->canManageAll());
 		$hasMore = count($entities) > $perPage;
 		$entities = array_slice($entities, 0, $perPage);
@@ -68,7 +84,7 @@ final class LinkService {
 	}
 
 	/** @param array<string, mixed> $data @return array<string, mixed> */
-	public function createForOwner(array $data, string $ownerUid): array {
+	public function createForOwner(array $data, string $ownerUid, bool $allowDuplicateTarget = false): array {
 		if (!$this->settings->bool('enabled')) {
 			throw new ValidationException('Shortlinks is disabled by the administrator');
 		}
@@ -80,7 +96,7 @@ final class LinkService {
 		$data = $event->data;
 		$targetUrl = $this->urlValidator->validate((string)($data['targetUrl'] ?? ''));
 		$targetHash = hash('sha256', $targetUrl);
-		if (!$this->settings->bool('allow_duplicate_targets')) {
+		if (!$allowDuplicateTarget && !$this->settings->bool('allow_duplicate_targets')) {
 			$existing = $this->links->findOwnerTarget($ownerUid, $targetHash);
 			if ($existing !== null) {
 				return $this->serialize($existing);
@@ -97,8 +113,8 @@ final class LinkService {
 		$tagIds = $this->validatedTagIds((array)($data['tagIds'] ?? []), $ownerUid);
 		$customSlug = trim((string)($data['slug'] ?? ''));
 		$lastException = null;
-		for ($attempt = 0; $attempt < 10; ++$attempt) {
-			$slug = $this->slugValidator->normalize($customSlug !== '' ? $customSlug : $this->aliasGenerator->generate());
+		for ($attempt = 0; $attempt < 40; ++$attempt) {
+			$slug = $this->slugValidator->normalize($customSlug !== '' ? $customSlug : $this->aliasSuggestions->candidate($ownerUid, (string)($data['title'] ?? ''), $targetUrl, $attempt));
 			if ($this->links->slugExists($slug)) {
 				if ($customSlug !== '') {
 					throw new ConflictException('Alias is already in use');
@@ -141,7 +157,7 @@ final class LinkService {
 			throw new NotFoundException();
 		}
 		$this->policy->requireView($link);
-		return ['slug' => $link->getSlug(), 'targetUrl' => $link->getTargetUrl(), 'shortUrl' => $this->linkUrls->forSlug($link->getSlug())];
+		return ['slug' => $link->getSlug(), 'targetUrl' => $link->getTargetUrl(), 'shortUrl' => $this->linkUrls->forSlug($link->getSlug(), $link->getOwnerUid())];
 	}
 
 	/** @param array<string, mixed> $data @return array<string, mixed> */
@@ -271,14 +287,19 @@ final class LinkService {
 
 	/** @return array<string, mixed> */
 	public function cloneLink(int $id): array {
+		return $this->cloneLinkToFolder($id, null, false);
+	}
+
+	/** @return array<string, mixed> */
+	public function cloneLinkToFolder(int $id, ?int $folderId, bool $overrideFolder = true): array {
 		$link = $this->find($id);
 		$this->policy->requireView($link);
 		$data = ['targetUrl' => $link->getTargetUrl(), 'title' => $link->getTitle() . ' (copy)', 'description' => $link->getDescription(), 'redirectStatus' => $link->getRedirectStatus(), 'accessMode' => 'public'];
 		if ($link->getOwnerUid() === $this->policy->currentUid()) {
-			$data['folderId'] = $link->getFolderId();
+			$data['folderId'] = $overrideFolder ? $folderId : $link->getFolderId();
 			$data['tagIds'] = array_map(static fn ($tag): int => $tag->getId(), $this->tags->findForLink($id));
 		}
-		return $this->create($data);
+		return $this->createForOwner($data, $this->policy->currentUid(), true);
 	}
 
 	/** @param list<int> $ids @param array<string,mixed> $changes @return array{updated:int,errors:list<array{id:int,error:string}>} */
@@ -328,14 +349,8 @@ final class LinkService {
 		return !$this->links->slugExists($slug);
 	}
 
-	public function suggestAlias(): string {
-		for ($attempt = 0; $attempt < 20; ++$attempt) {
-			$slug = $this->slugValidator->normalize($this->aliasGenerator->generate());
-			if (!$this->links->slugExists($slug)) {
-				return $slug;
-			}
-		}
-		throw new ConflictException('Could not generate an available alias');
+	public function suggestAlias(string $title = '', string $targetUrl = ''): string {
+		return $this->aliasSuggestions->suggest($this->policy->currentUid(), $title, $targetUrl);
 	}
 
 	private function find(int $id): ShortLink {
@@ -448,7 +463,7 @@ final class LinkService {
 	/** @return array<string,mixed> */
 	private function serialize(ShortLink $link): array {
 		$tags = array_map(static fn ($tag): array => $tag->toArray(), $this->tags->findForLink($link->getId()));
-		$result = $link->toArray($this->linkUrls->forSlug($link->getSlug()), $tags);
+		$result = $link->toArray($this->linkUrls->forSlug($link->getSlug(), $link->getOwnerUid()), $tags);
 		$result['canEdit'] = $this->policy->canEdit($link);
 		$result['canShare'] = $this->policy->canShare($link);
 		if ($link->getOwnerUid() !== $this->policy->currentUid() && !$this->policy->canManageAll()) {

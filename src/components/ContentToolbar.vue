@@ -15,6 +15,7 @@ import {
 	mdiStarOutline,
 	mdiTagMultipleOutline,
 	mdiTrashCanOutline,
+	mdiTrendingUp,
 	mdiViewDashboardOutline,
 } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -65,6 +66,7 @@ const systemItems = [
 	{ id: 'dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline },
 	{ id: 'all', label: 'All links', icon: mdiLinkVariant },
 	{ id: 'favorites', label: 'Favorites', icon: mdiStarOutline },
+	{ id: 'trending', label: 'Trending links', icon: mdiTrendingUp },
 	{ id: 'recent', label: 'Recently created', icon: mdiHistory },
 	{ id: 'used', label: 'Recently used', icon: mdiCursorDefaultClickOutline },
 	{ id: 'expired', label: 'Expired', icon: mdiCalendarRemoveOutline },

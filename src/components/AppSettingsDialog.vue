@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import {
 	mdiArrowDown,
 	mdiArrowUp,
+	mdiBookmarkPlusOutline,
 	mdiDeleteOutline,
 	mdiFolderMultipleOutline,
 	mdiFolderRemoveOutline,
@@ -27,11 +28,13 @@ import NcListItem from '@nextcloud/vue/components/NcListItem'
 import { api } from '../api/client'
 import { folderIconPath } from '../folderIcons'
 import type { Folder, FolderIcon, Tag } from '../types'
+import AliasUrlSettings from './AliasUrlSettings.vue'
 import FolderForm from './FolderForm.vue'
+import BookmarkletGuide from './BookmarkletGuide.vue'
 import TagForm from './TagForm.vue'
 
 const props = defineProps<{ open: boolean; folders: Folder[]; tags: Tag[] }>()
-const emit = defineEmits<{ 'update:open': [value: boolean]; changed: [] }>()
+const emit = defineEmits<{ 'update:open': [value: boolean]; changed: []; settingsSaved: [shortUrlTemplate: string] }>()
 const editingFolder = ref<Folder | null>(null)
 const creatingFolder = ref(false)
 const deletingFolder = ref<Folder | null>(null)
@@ -202,10 +205,30 @@ async function mergeTag() {
 		:name="t('shortlinks', 'Shortlinks settings')"
 		show-navigation
 		@update:open="emit('update:open', $event)">
+		<NcAppSettingsSection id="bookmarklet"
+			:name="t('shortlinks', 'Bookmarklet')"
+			:description="t('shortlinks', 'Create short links directly from your browser toolbar.')"
+			:order="10">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiBookmarkPlusOutline" />
+			</template>
+			<BookmarkletGuide :show-heading="false" />
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="aliases"
+			:name="t('shortlinks', 'Aliases and sharing URLs')"
+			:description="t('shortlinks', 'Personalize automatic aliases and the short-link URL you copy and share.')"
+			:order="15">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiLinkVariant" />
+			</template>
+			<AliasUrlSettings @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
+		</NcAppSettingsSection>
+
 		<NcAppSettingsSection id="folders"
 			:name="t('shortlinks', 'Folders')"
 			:description="t('shortlinks', 'Organize links in nested folders and choose their order.')"
-			:order="10">
+			:order="20">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiFolderMultipleOutline" />
 			</template>
@@ -271,7 +294,7 @@ async function mergeTag() {
 		<NcAppSettingsSection id="tags"
 			:name="t('shortlinks', 'Tags')"
 			:description="t('shortlinks', 'Maintain reusable labels for filtering and grouping links.')"
-			:order="20">
+			:order="30">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiTagMultipleOutline" />
 			</template>
@@ -314,7 +337,7 @@ async function mergeTag() {
 		<NcAppSettingsSection id="about"
 			:name="t('shortlinks', 'About')"
 			:description="t('shortlinks', 'Information about organizing links in Shortlinks.')"
-			:order="30">
+			:order="40">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiInformationOutline" />
 			</template>

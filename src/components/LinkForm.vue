@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { mdiInformationOutline, mdiLinkVariant, mdiRefresh } from '@mdi/js'
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -19,19 +19,21 @@ const props = withDefaults(defineProps<{
 	tags: Tag[]
 	redirectStatuses?: number[]
 	allowedSchemes?: string[]
-	baseUrl?: string | null
+	shortUrlTemplate?: string | null
 	prefillUrl?: string
 	prefillTitle?: string
 	prefillAlias?: string
+	prefillFolderId?: number | null
 	link?: ShortLink
 	allowTitleFetch?: boolean
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
-	baseUrl: null,
+	shortUrlTemplate: null,
 	prefillUrl: '',
 	prefillTitle: '',
 	prefillAlias: '',
+	prefillFolderId: null,
 	link: undefined,
 	allowTitleFetch: false,
 })
@@ -41,7 +43,7 @@ const draft = reactive<LinkDraft>({
 	title: props.link?.title ?? props.prefillTitle,
 	slug: props.link?.slug ?? props.prefillAlias,
 	description: props.link?.description ?? '',
-	folderId: props.link?.folderId ?? null,
+	folderId: props.link?.folderId ?? props.prefillFolderId,
 	tagIds: props.link?.tags.map(tag => tag.id) ?? [],
 	active: props.link?.active ?? true,
 	favorite: props.link?.favorite ?? false,
@@ -54,6 +56,8 @@ const draft = reactive<LinkDraft>({
 })
 const slug = computed({ get: () => draft.slug, set: value => { draft.slug = value } })
 const alias = useAliasValidation(slug, props.link?.slug)
+const aliasEdited = ref(Boolean(props.link || props.prefillAlias))
+let aliasTimer: ReturnType<typeof setTimeout> | undefined
 const fetchingTitle = ref(false)
 const newTagName = ref('')
 const availableTags = ref<Tag[]>([...props.tags])
@@ -80,9 +84,10 @@ const targetError = computed(() => {
 		return t('shortlinks', 'Enter a complete URL including its scheme.')
 	}
 })
-const shortUrlPrefix = computed(() => {
-	const configured = props.baseUrl?.trim().replace(/\/$/, '')
-	return configured ? `${configured}/` : `${location.origin}/apps/shortlinks/r/`
+const shortUrlParts = computed(() => {
+	const template = props.shortUrlTemplate || `${location.origin}/apps/shortlinks/r/{alias}`
+	const [before, ...after] = template.split('{alias}')
+	return { before, after: after.join('{alias}') }
 })
 const canSave = computed(() => !targetError.value
 	&& alias.valid.value
@@ -90,8 +95,28 @@ const canSave = computed(() => !targetError.value
 	&& (!limitClicks.value || Number(draft.clickLimit) > 0))
 
 onMounted(() => {
-	if (!draft.slug) alias.suggest()
+	if (!draft.slug) alias.suggest({ title: draft.title, targetUrl: draft.targetUrl })
 })
+
+watch(() => [draft.title, draft.targetUrl], () => {
+	if (props.link || aliasEdited.value) return
+	if (aliasTimer) clearTimeout(aliasTimer)
+	aliasTimer = setTimeout(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }), 450)
+})
+
+onBeforeUnmount(() => {
+	if (aliasTimer) clearTimeout(aliasTimer)
+})
+
+function setAlias(value: string | number) {
+	aliasEdited.value = true
+	draft.slug = String(value)
+}
+
+function regenerateAlias() {
+	aliasEdited.value = false
+	alias.suggest({ title: draft.title, targetUrl: draft.targetUrl })
+}
 
 function toggleTag(id: number) {
 	const values = draft.tagIds ?? []
@@ -176,11 +201,12 @@ function submit() {
 					<div class="component-field">
 						<label for="shortlinks-alias">{{ t('shortlinks', 'Alias') }}</label>
 						<NcTextField id="shortlinks-alias"
-							v-model="draft.slug"
+							:model-value="draft.slug"
 							required
 							:helper-text="alias.message.value"
 							:error="alias.state.value === 'invalid' || alias.state.value === 'unavailable'"
-							:success="alias.state.value === 'available'" />
+							:success="alias.state.value === 'available'"
+							@update:model-value="setAlias" />
 					</div>
 					<div class="alias-actions">
 						<NcPopover>
@@ -201,7 +227,7 @@ function submit() {
 								</ul>
 							</div>
 						</NcPopover>
-						<NcButton variant="tertiary-no-background" :aria-label="t('shortlinks', 'Generate another alias')" @click="alias.suggest">
+						<NcButton variant="tertiary-no-background" :aria-label="t('shortlinks', 'Generate another alias')" @click="regenerateAlias">
 							<template #icon>
 								<NcIconSvgWrapper :path="mdiRefresh" />
 							</template>
@@ -209,7 +235,7 @@ function submit() {
 					</div>
 				</div>
 				<p class="short-url-preview" aria-live="polite">
-					<span>{{ shortUrlPrefix }}</span><strong>{{ draft.slug || '…' }}</strong>
+					<span>{{ shortUrlParts.before }}</span><strong>{{ draft.slug || '…' }}</strong><span>{{ shortUrlParts.after }}</span>
 				</p>
 			</section>
 

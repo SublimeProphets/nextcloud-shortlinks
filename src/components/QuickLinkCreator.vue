@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { mdiDotsHorizontalCircleOutline, mdiPencilOutline, mdiShieldLockOutline, mdiShapeOutline } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -16,12 +16,12 @@ const props = withDefaults(defineProps<{
 	tags: Tag[]
 	redirectStatuses?: number[]
 	allowedSchemes?: string[]
-	baseUrl?: string | null
+	shortUrlTemplate?: string | null
 	create: (draft: Partial<LinkDraft>) => Promise<void>
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
-	baseUrl: null,
+	shortUrlTemplate: null,
 })
 
 type SettingsGroup = 'organization' | 'access' | 'more'
@@ -43,6 +43,8 @@ const draft = reactive<LinkDraft>({
 })
 const slug = computed({ get: () => draft.slug, set: value => { draft.slug = value } })
 const alias = useAliasValidation(slug)
+const aliasEdited = ref(false)
+let aliasTimer: ReturnType<typeof setTimeout> | undefined
 const editingAlias = ref(false)
 const activeSettings = ref<SettingsGroup | null>(null)
 const saving = ref(false)
@@ -53,9 +55,17 @@ const accessModes: Array<{ value: AccessMode; label: string }> = [
 	{ value: 'password', label: 'Password protected' },
 	{ value: 'disabled', label: 'Disabled' },
 ]
-const shortUrlPrefix = computed(() => {
-	const configured = props.baseUrl?.trim().replace(/\/$/, '')
-	return configured ? `${configured}/` : `${location.origin}/apps/shortlinks/r/`
+const redirectStatusHints: Record<number, string> = {
+	301: 'Permanent redirect. Browsers and search engines may cache it.',
+	302: 'Temporary redirect. The destination may change.',
+	307: 'Temporary redirect that preserves the request method.',
+	308: 'Permanent redirect that preserves the request method.',
+}
+const activeRedirectHint = computed(() => redirectStatusHints[draft.redirectStatus] ?? '')
+const shortUrlParts = computed(() => {
+	const template = props.shortUrlTemplate || `${location.origin}/apps/shortlinks/r/{alias}`
+	const [before, ...after] = template.split('{alias}')
+	return { before, after: after.join('{alias}') }
 })
 const urlValid = computed(() => {
 	try {
@@ -73,7 +83,22 @@ const canCreate = computed(() => urlValid.value
 const startsAtLocal = computed({ get: () => toLocal(draft.startsAt), set: value => { draft.startsAt = toTimestamp(value) } })
 const expiresAtLocal = computed({ get: () => toLocal(draft.expiresAt), set: value => { draft.expiresAt = toTimestamp(value) } })
 
-onMounted(() => alias.suggest())
+onMounted(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }))
+
+watch(() => [draft.title, draft.targetUrl], () => {
+	if (aliasEdited.value) return
+	if (aliasTimer) clearTimeout(aliasTimer)
+	aliasTimer = setTimeout(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }), 450)
+})
+
+onBeforeUnmount(() => {
+	if (aliasTimer) clearTimeout(aliasTimer)
+})
+
+function setAlias(value: string | number) {
+	aliasEdited.value = true
+	draft.slug = String(value)
+}
 
 function toggleSettings(group: SettingsGroup) {
 	activeSettings.value = activeSettings.value === group ? null : group
@@ -96,7 +121,7 @@ async function submit() {
 		})
 		showSuccess(t('shortlinks', 'Short link created'))
 		reset()
-		await alias.suggest()
+		await alias.suggest({ title: draft.title, targetUrl: draft.targetUrl })
 	} catch (error) {
 		showError(error instanceof Error ? error.message : String(error))
 	} finally {
@@ -122,6 +147,7 @@ function reset() {
 		clickLimit: null,
 	})
 	editingAlias.value = false
+	aliasEdited.value = false
 	activeSettings.value = null
 	limitClicks.value = false
 }
@@ -163,18 +189,20 @@ function toTimestamp(value: string): number | null {
 				<div class="quick-create__preview" :class="{ 'quick-create__preview--editing': editingAlias }">
 					<span class="preview-label">{{ t('shortlinks', 'Your short link') }}</span>
 					<div v-if="editingAlias" class="preview-editor">
-						<span>{{ shortUrlPrefix }}</span>
-						<NcTextField v-model="draft.slug"
+						<span>{{ shortUrlParts.before }}</span>
+						<NcTextField :model-value="draft.slug"
 							:label="t('shortlinks', 'Alias')"
 							:error="alias.state.value === 'invalid' || alias.state.value === 'unavailable'"
-							:success="alias.state.value === 'available'" />
+							:success="alias.state.value === 'available'"
+							@update:model-value="setAlias" />
+						<span>{{ shortUrlParts.after }}</span>
 					</div>
 					<button v-else
 						type="button"
 						class="preview-value"
 						:aria-label="t('shortlinks', 'Edit alias')"
 						@click="editingAlias = true">
-						<span>{{ shortUrlPrefix }}</span><mark>{{ draft.slug || '…' }}</mark><NcIconSvgWrapper class="preview-pencil" :path="mdiPencilOutline" :size="18" />
+						<span>{{ shortUrlParts.before }}</span><mark>{{ draft.slug || '…' }}</mark><span>{{ shortUrlParts.after }}</span><NcIconSvgWrapper class="preview-pencil" :path="mdiPencilOutline" :size="18" />
 					</button>
 					<p v-if="editingAlias"
 						class="alias-feedback"
@@ -219,7 +247,7 @@ function toTimestamp(value: string): number | null {
 				</div>
 				<div v-else-if="activeSettings === 'access'" class="settings-grid">
 					<label class="select-field"><span>{{ t('shortlinks', 'Access') }}</span><select v-model="draft.accessMode"><option v-for="mode in accessModes" :key="mode.value" :value="mode.value">{{ t('shortlinks', mode.label) }}</option></select></label>
-					<label class="select-field"><span>{{ t('shortlinks', 'Redirect type') }}</span><select v-model="draft.redirectStatus"><option v-for="status in redirectStatuses" :key="status" :value="status">{{ status }}</option></select></label>
+					<label class="select-field"><span>{{ t('shortlinks', 'Redirect type') }}</span><select v-model="draft.redirectStatus"><option v-for="status in redirectStatuses" :key="status" :value="status">{{ status }}{{ redirectStatusHints[status] ? ` — ${t('shortlinks', redirectStatusHints[status])}` : '' }}</option></select><small v-if="activeRedirectHint">{{ t('shortlinks', activeRedirectHint) }}</small></label>
 					<NcTextField v-if="draft.accessMode === 'password'"
 						v-model="draft.password"
 						type="password"
@@ -246,7 +274,7 @@ function toTimestamp(value: string): number | null {
 <style scoped>
 .quick-create {
 	inline-size: 100%;
-	padding: clamp(20px, 4vw, 40px);
+	padding: clamp(16px, 2.5vw, 28px);
 	border: 1px solid var(--color-primary-element-light);
 	border-radius: var(--border-radius-large);
 	background: linear-gradient(135deg, var(--color-primary-element-light-hover), var(--color-main-background) 72%);
@@ -259,7 +287,7 @@ function toTimestamp(value: string): number | null {
 }
 
 .quick-create__intro h2 {
-	font-size: 1.6rem;
+	font-size: 1.35rem;
 }
 
 .quick-create__intro p,
@@ -273,8 +301,8 @@ function toTimestamp(value: string): number | null {
 
 .quick-create form {
 	display: grid;
-	gap: calc(var(--default-grid-baseline) * 4);
-	margin-block-start: calc(var(--default-grid-baseline) * 5);
+	gap: calc(var(--default-grid-baseline) * 3);
+	margin-block-start: calc(var(--default-grid-baseline) * 3);
 }
 
 .quick-create__url-row {
@@ -395,6 +423,12 @@ function toTimestamp(value: string): number | null {
 	border-radius: var(--border-radius);
 	background: var(--color-main-background);
 	color: var(--color-main-text);
+	font-weight: normal;
+}
+
+.select-field small {
+	color: var(--color-text-maxcontrast);
+	font-size: .8rem;
 	font-weight: normal;
 }
 

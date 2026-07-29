@@ -6,6 +6,7 @@ namespace OCA\Shortlinks\Service;
 
 use OCA\Shortlinks\Db\Folder;
 use OCA\Shortlinks\Db\FolderMapper;
+use OCA\Shortlinks\Db\ShortLinkMapper;
 use OCA\Shortlinks\Exception\ConflictException;
 use OCA\Shortlinks\Exception\NotFoundException;
 use OCA\Shortlinks\Exception\ValidationException;
@@ -21,6 +22,8 @@ final class FolderService {
 
 	public function __construct(
 		private readonly FolderMapper $folders,
+		private readonly ShortLinkMapper $links,
+		private readonly LinkService $linkService,
 		private readonly LinkPolicy $policy,
 		private readonly ITimeFactory $time,
 		private readonly AuditService $audit,
@@ -118,6 +121,43 @@ final class FolderService {
 		$this->audit->record('folder_deleted', $uid, null, ['folderId' => $id, 'linksDeleted' => $deleteLinks]);
 	}
 
+	/** @return array<string,mixed> */
+	public function copy(int $id, ?int $targetParentId): array {
+		$uid = $this->policy->currentUid();
+		$source = $this->find($id, $uid);
+		$this->assertParent($uid, $id, $targetParentId);
+		$all = $this->folders->findAllForOwner($uid);
+		$subtreeIds = $this->subtreeIds($id, $all);
+		$byId = [];
+		foreach ($all as $folder) {
+			$byId[$folder->getId()] = $folder;
+		}
+		$copyName = $this->availableCopyName($source->getName(), $targetParentId, $all);
+		$root = $this->create($copyName, $targetParentId, $source->getPosition() + 1, $source->getIcon());
+		$idMap = [$id => (int)$root['id']];
+
+		foreach ($subtreeIds as $sourceFolderId) {
+			if ($sourceFolderId === $id || !isset($byId[$sourceFolderId])) {
+				continue;
+			}
+			$folder = $byId[$sourceFolderId];
+			$sourceParentId = $folder->getParentId();
+			if ($sourceParentId === null || !isset($idMap[$sourceParentId])) {
+				continue;
+			}
+			$created = $this->create($folder->getName(), $idMap[$sourceParentId], $folder->getPosition(), $folder->getIcon());
+			$idMap[$folder->getId()] = (int)$created['id'];
+		}
+
+		foreach ($idMap as $sourceFolderId => $targetFolderId) {
+			foreach ($this->links->findOwnedByFolder($sourceFolderId, $uid) as $link) {
+				$this->linkService->cloneLinkToFolder($link->getId(), $targetFolderId);
+			}
+		}
+		$this->audit->record('folder_copied', $uid, null, ['folderId' => $id, 'copyId' => (int)$root['id']]);
+		return $root;
+	}
+
 	/** @param list<int> $ids @return list<array<string,mixed>> */
 	public function reorder(?int $parentId, array $ids): array {
 		$uid = $this->policy->currentUid();
@@ -154,6 +194,22 @@ final class FolderService {
 			throw new ValidationException('Folder name is invalid', ['name' => 'invalid']);
 		}
 		return $name;
+	}
+
+	/** @param list<Folder> $all */
+	private function availableCopyName(string $name, ?int $parentId, array $all): string {
+		$used = array_map(
+			static fn (Folder $folder): string => mb_strtolower($folder->getName()),
+			array_filter($all, static fn (Folder $folder): bool => $folder->getParentId() === $parentId),
+		);
+		for ($copy = 1; $copy <= 100; ++$copy) {
+			$suffix = $copy === 1 ? ' (copy)' : ' (copy ' . $copy . ')';
+			$candidate = mb_substr($name, 0, max(1, 128 - mb_strlen($suffix))) . $suffix;
+			if (!in_array(mb_strtolower($candidate), $used, true)) {
+				return $candidate;
+			}
+		}
+		throw new ConflictException('Could not create a unique folder copy');
 	}
 
 	private function validateIcon(string $icon): string {

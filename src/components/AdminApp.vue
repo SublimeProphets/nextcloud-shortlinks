@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
@@ -19,12 +19,20 @@ interface AdminSettingsState {
 	creation_groups: string[]
 	public_creation_groups: string[]
 	max_links_per_user: number
-	alias_mode: 'random' | 'base36' | 'base62'
+	alias_mode: 'random' | 'base36' | 'base62' | 'readable'
 	alias_length: number
 	alias_min_length: number
+	alias_collision_mode: 'random' | 'numbered'
+	alias_suffix_length: number
+	allow_user_alias_settings: boolean
+	allow_user_url_settings: boolean
 	reserved_aliases: string[]
 	allow_duplicate_targets: boolean
 	base_url: string
+	link_url_mode: 'simple' | 'template' | 'regex'
+	link_url_template: string
+	link_url_pattern: string
+	link_url_replacement: string
 	domain_allowlist: string[]
 	domain_blocklist: string[]
 	allowed_schemes: string[]
@@ -68,6 +76,28 @@ const newScheme = ref('')
 const customSchemeWarning = t('shortlinks', 'Custom schemes open in the visitor browser. Domain rules apply only to URLs that contain a host.')
 const displayedRedirectStatuses = computed(() => [...new Set([...defaultRedirectStatuses, ...settings.redirect_statuses])].sort((a, b) => a - b))
 const displayedSchemes = computed(() => [...new Set([...defaultSchemes, ...settings.allowed_schemes])].sort((a, b) => a.localeCompare(b)))
+const canonicalUrlExample = `${window.location.origin}/apps/shortlinks/r/summer-campaign`
+const publicUrlPreview = computed(() => {
+	try {
+		if (settings.link_url_mode === 'simple') return settings.base_url.trim() ? `${settings.base_url.trim().replace(/\/$/, '')}/summer-campaign` : canonicalUrlExample
+		if (settings.link_url_mode === 'template') return settings.link_url_template.replaceAll('{alias}', 'summer-campaign').replaceAll('{user}', 'alice')
+		const result = canonicalUrlExample.replace(new RegExp(settings.link_url_pattern, 'u'), settings.link_url_replacement)
+		return result === canonicalUrlExample ? t('shortlinks', 'The regular expression does not match the current Shortlinks URL.') : result
+	} catch {
+		return t('shortlinks', 'The regular expression is invalid.')
+	}
+})
+
+watch(() => settings.link_url_mode, mode => {
+	if (mode === 'template' && !settings.link_url_template) {
+		settings.link_url_template = `${settings.base_url.trim().replace(/\/$/, '') || `${window.location.origin}/apps/shortlinks/r`}/{alias}`
+	}
+	if (mode === 'regex' && !settings.link_url_pattern) {
+		const prefix = `${window.location.origin}/apps/shortlinks/r/`
+		settings.link_url_pattern = `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(.+)$`
+		settings.link_url_replacement = `${settings.base_url.trim().replace(/\/$/, '') || 'https://go.example'}/$1`
+	}
+})
 
 async function save() {
 	saving.value = true
@@ -189,8 +219,8 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 			</div>
 		</NcSettingsSection>
 
-		<NcSettingsSection :name="t('shortlinks', 'Aliases and redirects')"
-			:description="t('shortlinks', 'Configure generated aliases, public link URLs, and redirect behavior.')">
+		<NcSettingsSection :name="t('shortlinks', 'Aliases and short-link URLs')"
+			:description="t('shortlinks', 'Configure generated aliases, the URL users share, and personal overrides.')">
 			<div class="settings-controls">
 				<div class="settings-grid settings-grid--three">
 					<label class="settings-select">
@@ -199,6 +229,7 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 							<option value="random">{{ t('shortlinks', 'Random Base62') }}</option>
 							<option value="base36">{{ t('shortlinks', 'Sequential Base36') }}</option>
 							<option value="base62">{{ t('shortlinks', 'Sequential Base62') }}</option>
+							<option value="readable">{{ t('shortlinks', 'Readable from title or destination') }}</option>
 						</select>
 					</label>
 					<NcTextField v-model="settings.alias_length"
@@ -212,15 +243,67 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 						max="64"
 						:label="t('shortlinks', 'Minimum sequential alias length')" />
 				</div>
+				<div v-if="settings.alias_mode === 'readable'" class="settings-grid">
+					<label class="settings-select">
+						<span>{{ t('shortlinks', 'If the alias is already used') }}</span>
+						<select v-model="settings.alias_collision_mode">
+							<option value="random">{{ t('shortlinks', 'Add a short random suffix') }}</option>
+							<option value="numbered">{{ t('shortlinks', 'Add an ascending number') }}</option>
+						</select>
+					</label>
+					<NcTextField v-if="settings.alias_collision_mode === 'random'"
+						v-model="settings.alias_suffix_length"
+						type="number"
+						min="1"
+						max="12"
+						:label="t('shortlinks', 'Initial random suffix length')" />
+				</div>
+				<NcCheckboxRadioSwitch v-model="settings.allow_user_alias_settings" type="switch">
+					{{ t('shortlinks', 'Allow users to choose their alias strategy') }}
+				</NcCheckboxRadioSwitch>
 				<NcTextField v-model="lists.reserved_aliases"
 					:label="t('shortlinks', 'Additional reserved aliases (comma-separated)')" />
 				<NcCheckboxRadioSwitch v-model="settings.allow_duplicate_targets" type="switch">
 					{{ t('shortlinks', 'Allow the same target URL more than once per owner') }}
 				</NcCheckboxRadioSwitch>
-				<NcTextField v-model="settings.base_url"
-					type="url"
-					:label="t('shortlinks', 'Public base URL (optional)')"
-					:helper-text="t('shortlinks', 'Leave empty to use the current Nextcloud URL.')" />
+				<hr>
+				<div class="settings-subsection">
+					<h3>{{ t('shortlinks', 'Shared short-link URL') }}</h3>
+					<p class="settings-hint">
+						{{ t('shortlinks', 'Use a simple domain, a placeholder template, or transform the canonical Nextcloud URL with a regular expression.') }}
+					</p>
+					<label class="settings-select">
+						<span>{{ t('shortlinks', 'URL format') }}</span>
+						<select v-model="settings.link_url_mode">
+							<option value="simple">{{ t('shortlinks', 'Domain and append alias') }}</option>
+							<option value="template">{{ t('shortlinks', 'Template with placeholders') }}</option>
+							<option value="regex">{{ t('shortlinks', 'Regular expression replacement') }}</option>
+						</select>
+					</label>
+					<NcTextField v-if="settings.link_url_mode === 'simple'"
+						v-model="settings.base_url"
+						type="url"
+						:label="t('shortlinks', 'Short-link domain or base URL')"
+						:helper-text="t('shortlinks', 'The alias is appended automatically. Leave empty to use Nextcloud.')" />
+					<NcTextField v-else-if="settings.link_url_mode === 'template'"
+						v-model="settings.link_url_template"
+						:label="t('shortlinks', 'URL template')"
+						:helper-text="t('shortlinks', 'Use {alias}; {user} is optional. Example: https://go.example/{user}/{alias}')" />
+					<div v-else class="settings-grid">
+						<NcTextField v-model="settings.link_url_pattern"
+							:label="t('shortlinks', 'Regular expression')"
+							:helper-text="t('shortlinks', 'Enter the pattern without delimiters.')" />
+						<NcTextField v-model="settings.link_url_replacement"
+							:label="t('shortlinks', 'Replacement')"
+							:helper-text="t('shortlinks', 'Use $1, $2, and so on for captured groups.')" />
+					</div>
+					<NcNoteCard type="info" :heading="t('shortlinks', 'Preview')" :text="publicUrlPreview" />
+					<NcCheckboxRadioSwitch v-model="settings.allow_user_url_settings" type="switch">
+						{{ t('shortlinks', 'Allow users to override the shared short-link URL') }}
+					</NcCheckboxRadioSwitch>
+					<NcNoteCard type="warning" :text="t('shortlinks', 'Custom domains must route requests to this Nextcloud Shortlinks endpoint. This setting changes displayed and copied URLs; it does not configure DNS or a reverse proxy.')" />
+				</div>
+				<hr>
 				<fieldset class="settings-options">
 					<legend>{{ t('shortlinks', 'Allowed redirect status codes') }}</legend>
 					<div class="settings-options__list">

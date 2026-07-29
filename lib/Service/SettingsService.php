@@ -18,16 +18,19 @@ final class SettingsService {
 		'enabled' => true, 'public_creation' => false, 'max_links_per_user' => 10000,
 		'public_owner_uid' => '',
 		'alias_mode' => 'random', 'alias_length' => 7, 'alias_min_length' => 4,
+		'alias_collision_mode' => 'random', 'alias_suffix_length' => 2,
+		'allow_user_alias_settings' => true, 'allow_user_url_settings' => true,
 		'allow_duplicate_targets' => true, 'title_fetch' => false, 'stats_enabled' => true,
 		'privacy_mode' => 'detailed', 'respect_dnt' => true, 'click_retention_days' => 90,
 		'aggregate_retention_days' => 365, 'audit_retention_days' => 180, 'trash_retention_days' => 30,
 		'referrer_mode' => 'domain', 'log_authenticated_users' => false, 'record_bots' => true,
 		'admin_manage_all' => false, 'legacy_api' => false, 'api_tokens' => false,
-		'user_deletion_mode' => 'retain', 'base_url' => '', 'geoip_path' => '',
+		'user_deletion_mode' => 'retain', 'base_url' => '', 'link_url_mode' => 'simple',
+		'link_url_template' => '', 'link_url_pattern' => '', 'link_url_replacement' => '', 'geoip_path' => '',
 	];
 
-	private const BOOL_KEYS = ['enabled', 'public_creation', 'allow_duplicate_targets', 'title_fetch', 'stats_enabled', 'respect_dnt', 'log_authenticated_users', 'record_bots', 'admin_manage_all', 'legacy_api', 'api_tokens'];
-	private const INT_KEYS = ['max_links_per_user', 'alias_length', 'alias_min_length', 'click_retention_days', 'aggregate_retention_days', 'audit_retention_days', 'trash_retention_days'];
+	private const BOOL_KEYS = ['enabled', 'public_creation', 'allow_user_alias_settings', 'allow_user_url_settings', 'allow_duplicate_targets', 'title_fetch', 'stats_enabled', 'respect_dnt', 'log_authenticated_users', 'record_bots', 'admin_manage_all', 'legacy_api', 'api_tokens'];
+	private const INT_KEYS = ['max_links_per_user', 'alias_length', 'alias_min_length', 'alias_suffix_length', 'click_retention_days', 'aggregate_retention_days', 'audit_retention_days', 'trash_retention_days'];
 	private const ARRAY_KEYS = ['allowed_schemes', 'reserved_aliases', 'domain_allowlist', 'domain_blocklist', 'creation_groups', 'public_creation_groups', 'redirect_statuses'];
 
 	public function __construct(
@@ -142,11 +145,17 @@ final class SettingsService {
 			}
 		}
 		$candidate = array_replace($this->publicSettings(), $normalized);
-		if (!in_array($candidate['alias_mode'], ['base36', 'base62', 'random'], true)) {
+		if (!in_array($candidate['alias_mode'], ['base36', 'base62', 'random', 'readable'], true)) {
 			throw new ValidationException('Invalid alias mode', ['aliasMode' => 'invalid']);
+		}
+		if (!in_array($candidate['alias_collision_mode'], ['random', 'numbered'], true)) {
+			throw new ValidationException('Invalid alias collision mode', ['aliasCollisionMode' => 'invalid']);
 		}
 		if ((int)$candidate['alias_min_length'] < 1 || (int)$candidate['alias_length'] < (int)$candidate['alias_min_length'] || (int)$candidate['alias_length'] > 64) {
 			throw new ValidationException('Alias length is outside the allowed range', ['aliasLength' => 'invalid']);
+		}
+		if ((int)$candidate['alias_suffix_length'] < 1 || (int)$candidate['alias_suffix_length'] > 12) {
+			throw new ValidationException('Alias suffix length must be between 1 and 12', ['aliasSuffixLength' => 'invalid']);
 		}
 		if ((int)$candidate['max_links_per_user'] < 1 || (int)$candidate['max_links_per_user'] > 1000000) {
 			throw new ValidationException('Maximum links per user must be between 1 and 1000000', ['maxLinksPerUser' => 'invalid']);
@@ -205,7 +214,13 @@ final class SettingsService {
 				throw new ValidationException('Invalid administration setting', [$key => 'invalid']);
 			}
 		}
-		$this->validateBaseUrl((string)$candidate['base_url']);
+		$this->validateLinkUrlConfiguration([
+			'mode' => (string)$candidate['link_url_mode'],
+			'baseUrl' => (string)$candidate['base_url'],
+			'template' => (string)$candidate['link_url_template'],
+			'pattern' => (string)$candidate['link_url_pattern'],
+			'replacement' => (string)$candidate['link_url_replacement'],
+		]);
 
 		$normalized['allowed_schemes'] = $schemes;
 		$normalized['redirect_statuses'] = array_map('strval', $statuses);
@@ -224,6 +239,72 @@ final class SettingsService {
 
 	public function validatedBaseUrl(): ?string {
 		return $this->validateBaseUrl($this->string('base_url'));
+	}
+
+	/** @return array{mode:string,baseUrl:string,template:string,pattern:string,replacement:string} */
+	public function linkUrlConfiguration(): array {
+		return $this->validateLinkUrlConfiguration([
+			'mode' => $this->string('link_url_mode'),
+			'baseUrl' => $this->string('base_url'),
+			'template' => $this->string('link_url_template'),
+			'pattern' => $this->string('link_url_pattern'),
+			'replacement' => $this->string('link_url_replacement'),
+		]);
+	}
+
+	/**
+	 * @param array{mode:string,baseUrl:string,template:string,pattern:string,replacement:string} $configuration
+	 * @return array{mode:string,baseUrl:string,template:string,pattern:string,replacement:string}
+	 */
+	public function validateLinkUrlConfiguration(array $configuration): array {
+		$mode = trim($configuration['mode']);
+		if (!in_array($mode, ['simple', 'template', 'regex'], true)) {
+			throw new ValidationException('Invalid public URL mode', ['urlMode' => 'invalid']);
+		}
+		$baseUrl = $this->validateBaseUrl($configuration['baseUrl']) ?? '';
+		$template = trim($configuration['template']);
+		$pattern = trim($configuration['pattern']);
+		$replacement = trim($configuration['replacement']);
+		foreach (['template' => $template, 'pattern' => $pattern, 'replacement' => $replacement] as $field => $value) {
+			if (strlen($value) > 1024 || preg_match('/[\x00-\x1f\x7f]/', $value) === 1) {
+				throw new ValidationException('Public URL configuration is too long or contains control characters', [$field => 'invalid']);
+			}
+		}
+		if ($mode === 'template') {
+			if (!str_contains($template, '{alias}')) {
+				throw new ValidationException('The public URL template must contain {alias}', ['urlTemplate' => 'missing_alias']);
+			}
+			if (preg_match_all('/\{([^}]+)\}/', $template, $matches) === false || array_diff($matches[1] ?? [], ['alias', 'user']) !== []) {
+				throw new ValidationException('The public URL template contains an unsupported placeholder', ['urlTemplate' => 'invalid']);
+			}
+			$this->validateRenderedPublicUrl(str_replace(['{alias}', '{user}'], ['example-link', 'alice'], $template));
+		}
+		if ($mode === 'regex') {
+			$this->validateRegex($pattern, $replacement);
+		}
+		return ['mode' => $mode, 'baseUrl' => $baseUrl, 'template' => $template, 'pattern' => $pattern, 'replacement' => $replacement];
+	}
+
+	public function validateRenderedPublicUrl(string $url): string {
+		$value = trim($url);
+		if (strlen($value) > 4096 || preg_match('/[\x00-\x20\x7f]/', $value) === 1 || str_contains($value, '\\')) {
+			throw new ValidationException('Generated public URL is invalid', ['publicUrl' => 'invalid']);
+		}
+		$parts = parse_url($value);
+		if (!is_array($parts) || !isset($parts['scheme'], $parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass'])) {
+			throw new ValidationException('Generated public URL must be an absolute HTTP(S) URL without credentials', ['publicUrl' => 'invalid']);
+		}
+		return $value;
+	}
+
+	private function validateRegex(string $pattern, string $replacement): void {
+		if ($pattern === '' || $replacement === '' || preg_match('/\(\?[R0]|\(\?\(R|\\\\C|\(\*/', $pattern) === 1) {
+			throw new ValidationException('The regular expression or replacement is invalid', ['urlPattern' => 'invalid']);
+		}
+		$compiled = '~' . str_replace('~', '\\~', $pattern) . '~u';
+		if (@preg_match($compiled, 'https://cloud.example/apps/shortlinks/r/example-link') === false) {
+			throw new ValidationException('The regular expression is invalid', ['urlPattern' => 'invalid']);
+		}
 	}
 
 	private function validateBaseUrl(string $baseUrl): ?string {

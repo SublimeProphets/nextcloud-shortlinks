@@ -32,6 +32,9 @@ final class SettingsServiceTest extends TestCase {
 			[['redirect_statuses' => [200, 302]]],
 			[['creation_groups' => [['nested']]]],
 			[['base_url' => 'https://user:password@example.com']],
+			[['link_url_mode' => 'template', 'link_url_template' => 'https://go.example/static']],
+			[['link_url_mode' => 'regex', 'link_url_pattern' => '(', 'link_url_replacement' => 'https://go.example/$1']],
+			[['alias_suffix_length' => 13]],
 			[['max_links_per_user' => 1000001]],
 		];
 	}

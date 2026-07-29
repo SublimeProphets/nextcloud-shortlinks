@@ -17,6 +17,7 @@ tags:
   - name: shares
   - name: statistics
   - name: tools
+  - name: user_settings
 paths:
   /links:
     get:
@@ -26,8 +27,9 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PerPage'
         - {name: search, in: query, schema: {type: string, maxLength: 255}}
-        - {name: system, in: query, schema: {type: string, enum: [all, favorites, recent, used, expired, inactive, trash]}}
+        - {name: system, in: query, schema: {type: string, enum: [all, favorites, recent, used, trending, top, expired, inactive, trash]}}
         - {name: folderId, in: query, schema: {type: integer, format: int64, nullable: true}}
+        - {name: folderIds, in: query, schema: {type: array, maxItems: 200, items: {type: integer, format: int64}}}
         - {name: tagIds, in: query, schema: {type: array, maxItems: 10, items: {type: integer, format: int64}}}
         - {name: tagMode, in: query, schema: {type: string, enum: [and, or], default: and}}
         - {name: createdFrom, in: query, schema: {type: integer, format: int64, nullable: true}}
@@ -129,8 +131,43 @@ paths:
   /aliases/suggest:
     post:
       tags: [links]
-      summary: Generate an available alias for an authenticated user
+      summary: Generate an available alias using the user's strategy and optional title or destination context
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: {type: string, maxLength: 255}
+                targetUrl: {type: string, maxLength: 4096}
       responses: {'200': {$ref: '#/components/responses/Success'}}
+  /user-settings:
+    get:
+      tags: [user_settings]
+      summary: Return personal alias and shared URL preferences with previews
+      responses: {'200': {$ref: '#/components/responses/Success'}}
+    put:
+      tags: [user_settings]
+      summary: Update personal alias and shared URL preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                aliasStrategy: {type: string, enum: [inherit, random, readable]}
+                collisionStrategy: {type: string, enum: [random, numbered]}
+                suffixLength: {type: integer, minimum: 1, maximum: 12}
+                urlMode: {type: string, enum: [inherit, simple, template, regex]}
+                baseUrl: {type: string, maxLength: 4096}
+                urlTemplate: {type: string, maxLength: 1024}
+                urlPattern: {type: string, maxLength: 1024}
+                urlReplacement: {type: string, maxLength: 1024}
+      responses:
+        '200': {$ref: '#/components/responses/Success'}
+        '422': {$ref: '#/components/responses/Error'}
   /folders:
     get:
       tags: [folders]
@@ -179,6 +216,13 @@ paths:
       summary: Delete a folder tree
       parameters: [{name: deleteLinks, in: query, schema: {type: boolean, default: false}}]
       responses: {'204': {description: Deleted}}
+  /folders/{id}/copy:
+    post:
+      tags: [folders]
+      summary: Copy a folder tree and its links
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody: {$ref: '#/components/requestBodies/FreeObject'}
+      responses: {'201': {$ref: '#/components/responses/Success'}}
   /tags:
     get:
       tags: [tags]

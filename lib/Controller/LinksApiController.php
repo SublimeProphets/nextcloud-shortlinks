@@ -30,7 +30,7 @@ final class LinksApiController extends AbstractApiOCSController {
 	 * @param int $page Page number starting at one
 	 * @param int $perPage Number of links per page
 	 * @param string $search Search text
-	 * @param string $system Collection filter: all, personal, system, or trash
+	 * @param string $system Collection filter: all, favorites, recent, used, trending, top, or trash
 	 * @param null|int $folderId Folder identifier
 	 * @param string $sort Sort field
 	 * @param string $direction Sort direction
@@ -186,13 +186,15 @@ final class LinksApiController extends AbstractApiOCSController {
 	/**
 	 * Suggest an available alias
 	 *
+	 * @param string $title Optional title used for readable aliases
+	 * @param string $targetUrl Optional destination URL used when no title is available
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
 	 *
 	 * 200: Alias suggestion
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function suggestAlias(): DataResponse {
-		return $this->respond(fn (): array => ['slug' => $this->links->suggestAlias()]);
+	public function suggestAlias(string $title = '', string $targetUrl = ''): DataResponse {
+		return $this->respond(fn (): array => ['slug' => $this->links->suggestAlias($title, $targetUrl)]);
 	}
 }

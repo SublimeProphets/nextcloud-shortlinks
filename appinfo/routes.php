@@ -30,6 +30,7 @@ return [
 		['name' => 'folders_api#create', 'url' => '/api/v1/folders', 'verb' => 'POST'],
 		['name' => 'folders_api#reorder', 'url' => '/api/v1/folders/order', 'verb' => 'PUT'],
 		['name' => 'folders_api#update', 'url' => '/api/v1/folders/{id}', 'verb' => 'PATCH'],
+		['name' => 'folders_api#copy', 'url' => '/api/v1/folders/{id}/copy', 'verb' => 'POST'],
 		['name' => 'folders_api#destroy', 'url' => '/api/v1/folders/{id}', 'verb' => 'DELETE'],
 		['name' => 'tags_api#index', 'url' => '/api/v1/tags', 'verb' => 'GET'],
 		['name' => 'tags_api#create', 'url' => '/api/v1/tags', 'verb' => 'POST'],
@@ -49,6 +50,8 @@ return [
 		['name' => 'tools_api#bookmarklet', 'url' => '/api/v1/tools/bookmarklet', 'verb' => 'GET'],
 		['name' => 'tools_api#title', 'url' => '/api/v1/tools/title', 'verb' => 'POST'],
 		['name' => 'capabilities_api#index', 'url' => '/api/v1/capabilities', 'verb' => 'GET'],
+		['name' => 'user_settings_api#index', 'url' => '/api/v1/user-settings', 'verb' => 'GET'],
+		['name' => 'user_settings_api#update', 'url' => '/api/v1/user-settings', 'verb' => 'PUT'],
 		['name' => 'activity_api#index', 'url' => '/api/v1/links/{id}/activity', 'verb' => 'GET'],
 	],
 ];

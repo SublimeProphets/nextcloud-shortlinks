@@ -21,13 +21,15 @@ describe('Navigation', () => {
 		expect(view.emitted('tag')?.[0]).toEqual([4])
 	})
 
-	it('provides dashboard, bookmarklet, and app settings navigation', async () => {
+	it('provides dashboard, trending, trash, and settings navigation', async () => {
 		const view = render(Navigation, { props: { folders: [], tags: [], activeSystem: 'dashboard', activeFolderId: null, activeTagIds: [] }, global })
 		await fireEvent.click(view.getByRole('button', { name: 'Dashboard' }))
-		await fireEvent.click(view.getByRole('button', { name: 'Create bookmarklet' }))
-		await fireEvent.click(view.getByRole('button', { name: 'App settings' }))
+		await fireEvent.click(view.getByRole('button', { name: 'Trending links' }))
+		await fireEvent.click(view.getByRole('button', { name: 'Trash' }))
+		await fireEvent.click(view.getByRole('button', { name: 'Settings' }))
 		expect(view.emitted('filter')?.[0]).toEqual([{ system: 'dashboard', folderId: null }])
-		expect(view.emitted('bookmarklet')).toHaveLength(1)
+		expect(view.emitted('filter')?.[1]).toEqual([{ system: 'trending', folderId: null }])
+		expect(view.emitted('filter')?.[2]).toEqual([{ system: 'trash', folderId: null }])
 		expect(view.emitted('settings')).toHaveLength(1)
 	})
 })

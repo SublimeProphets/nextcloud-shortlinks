@@ -33,6 +33,7 @@ final class ToolsApiController extends AbstractApiOCSController {
 	 * @param string $format Export format: json or csv
 	 * @param string $system Collection filter
 	 * @param null|int $folderId Folder identifier
+	 * @param list<int> $folderIds Folder identifiers for exporting a subtree
 	 * @param list<int> $tagIds Tag identifiers
 	 * @param string $tagMode Tag matching mode: and or or
 	 * @param string $search Search text
@@ -44,8 +45,8 @@ final class ToolsApiController extends AbstractApiOCSController {
 	 * 200: Export result
 	 */
 	#[NoAdminRequired]
-	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null): DataResponse {
-		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active]));
+	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $folderIds = [], array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null): DataResponse {
+		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'folderIds' => $folderIds, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active]));
 	}
 	/**
 	 * Import links from bounded JSON or CSV content
