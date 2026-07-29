@@ -55,9 +55,13 @@ final class AppContractTest extends TestCase {
 		self::assertContains('POST /api/v1/aliases/suggest', $routeKeys);
 		self::assertContains('PUT /api/v1/folders/order', $routeKeys);
 		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1101Date20260729220000.php');
 		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertNotFalse($migration);
 		self::assertStringContainsString("hasColumn('icon')", $migration);
+		$counterMigration = file_get_contents($this->root . '/lib/Migration/Version1101Date20260729220000.php');
+		self::assertNotFalse($counterMigration);
+		self::assertStringContainsString("createNamedParameter('sequential')", $counterMigration);
 	}
 
 	public function testReleaseIgnoreRulesExcludeDevelopmentTrees(): void {

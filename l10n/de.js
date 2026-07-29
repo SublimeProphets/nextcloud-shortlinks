@@ -459,7 +459,19 @@ OC.L10N.register(
 		"Without delimiters; it is applied to the canonical URL.": "Ohne Begrenzungszeichen; wird auf die kanonische URL angewendet.",
 		"Your administrator manages alias generation globally.": "Die Alias-Erzeugung wird global administriert.",
 		"Your administrator manages the shared short-link URL globally.": "Die geteilte Kurzlink-URL wird global administriert.",
-		"Your custom domain must already forward requests to this Nextcloud Shortlinks endpoint.": "Deine benutzerdefinierte Domain muss Anfragen bereits an diesen Nextcloud-Shortlinks-Endpunkt weiterleiten."
+		"Your custom domain must already forward requests to this Nextcloud Shortlinks endpoint.": "Deine benutzerdefinierte Domain muss Anfragen bereits an diesen Nextcloud-Shortlinks-Endpunkt weiterleiten.",
+		"Close navigation": "Navigation schliessen",
+		"Open navigation": "Navigation öffnen",
+		"Open details for {title}": "Details für {title} öffnen",
+		"Copy link": "Link kopieren",
+		"Create another short link": "Weiteren Kurzlink erstellen",
+		"QR code": "QR-Code",
+		"QR code for {title}": "QR-Code für {title}",
+		"Copy QR code as SVG": "QR-Code als SVG kopieren",
+		"Download QR code": "QR-Code herunterladen",
+		"QR code copied as SVG": "QR-Code als SVG kopiert",
+		"Could not load QR code": "QR-Code konnte nicht geladen werden",
+		"Yes": "Ja"
 	},
 	"nplurals=2; plural=(n != 1);"
 );

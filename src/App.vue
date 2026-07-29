@@ -171,7 +171,8 @@ async function createTag(value: { name: string; color: string | null }) {
 				:redirect-statuses="capabilities.redirectStatuses"
 				:allowed-schemes="settings.allowedSchemes"
 				:short-url-template="settings.shortUrlTemplate"
-				:create="store.create" />
+				:create="store.create"
+				@open="selectedLink = $event" />
 			<LinkList v-else
 				:links="store.state.links"
 				:folders="store.state.folders"

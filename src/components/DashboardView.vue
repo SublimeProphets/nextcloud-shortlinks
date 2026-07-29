@@ -17,12 +17,13 @@ const props = withDefaults(defineProps<{
 	redirectStatuses?: number[]
 	allowedSchemes?: string[]
 	shortUrlTemplate?: string | null
-	create: (draft: Partial<LinkDraft>) => Promise<void>
+	create: (draft: Partial<LinkDraft>) => Promise<ShortLink>
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
 	shortUrlTemplate: null,
 })
+const emit = defineEmits<{ open: [link: ShortLink] }>()
 const newest = ref<ShortLink[]>([])
 const favorites = ref<ShortLink[]>([])
 const top = ref<ShortLink[]>([])
@@ -50,9 +51,10 @@ async function loadDashboard() {
 	}
 }
 
-async function createAndRefresh(draft: Partial<LinkDraft>) {
-	await props.create(draft)
+async function createAndRefresh(draft: Partial<LinkDraft>): Promise<ShortLink> {
+	const created = await props.create(draft)
 	await loadDashboard()
+	return created
 }
 
 const columns = [
@@ -88,7 +90,10 @@ const columns = [
 					<div><h2>{{ t('shortlinks', column.title) }}</h2><p>{{ t('shortlinks', column.description) }}</p></div>
 				</header>
 				<div v-if="column.links.value.length" class="dashboard-column__cards">
-					<CompactLinkCard v-for="link in column.links.value" :key="link.id" :link="link" />
+					<CompactLinkCard v-for="link in column.links.value"
+						:key="link.id"
+						:link="link"
+						@open="emit('open', $event)" />
 				</div>
 				<NcEmptyContent v-else :name="t('shortlinks', 'No links to show')" :description="t('shortlinks', 'This section fills up as you use Shortlinks.')" />
 			</section>

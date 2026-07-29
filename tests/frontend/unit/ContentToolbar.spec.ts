@@ -3,14 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ContentToolbar from '../../../src/components/ContentToolbar.vue'
 
-const { apiMock } = vi.hoisted(() => ({
+const { apiMock, eventBusMock } = vi.hoisted(() => ({
 	apiMock: {
 		exportLinks: vi.fn(),
 		importLinks: vi.fn(),
 	},
+	eventBusMock: {
+		emit: vi.fn(),
+		subscribe: vi.fn(),
+		unsubscribe: vi.fn(),
+	},
 }))
 vi.mock('../../../src/api/client', () => ({ api: apiMock }))
 vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
+vi.mock('@nextcloud/event-bus', () => eventBusMock)
 
 const props = {
 	folders: [
@@ -66,6 +72,15 @@ describe('ContentToolbar', () => {
 		const view = render(ContentToolbar, { props, global })
 		await fireEvent.click(view.getByRole('button', { name: 'Clients' }))
 		expect(view.emitted('filter')).toContainEqual([{ system: 'all', folderId: 4 }])
+	})
+
+	it('places the navigation toggle first and controls the native navigation event', async () => {
+		const view = render(ContentToolbar, { props, global })
+		const buttons = view.getAllByRole('button')
+		expect(buttons[0]?.getAttribute('aria-label')).toBe('Close navigation')
+		expect(buttons[1]?.textContent).toContain('+ New')
+		await fireEvent.click(buttons[0]!)
+		expect(eventBusMock.emit).toHaveBeenCalledWith('toggle-navigation', { open: false })
 	})
 
 	it('applies text, age, and activity restrictions together', async () => {

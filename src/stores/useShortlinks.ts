@@ -68,7 +68,11 @@ export function useShortlinks() {
 		selectedCount: computed(() => state.selected.size),
 		refresh,
 		loadMore,
-		async create(draft: Partial<LinkDraft>) { await api.createLink(draft); await refresh() },
+		async create(draft: Partial<LinkDraft>): Promise<ShortLink> {
+			const created = await api.createLink(draft)
+			await refresh()
+			return created
+		},
 		async update(link: ShortLink, changes: Record<string, unknown>) { await api.updateLink(link.id, { ...changes, version: link.version }); await refresh() },
 		async remove(link: ShortLink) { await api.deleteLink(link.id); await refresh() },
 		async restore(link: ShortLink) { await api.restoreLink(link.id); await refresh() },

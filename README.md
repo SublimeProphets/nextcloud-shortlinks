@@ -76,4 +76,4 @@ For an isolated release artifact, run `make package` or `bash scripts/package.sh
 
 ## Project status and release inputs
 
-Version `1.1.6` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.
+Version `1.1.8` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.

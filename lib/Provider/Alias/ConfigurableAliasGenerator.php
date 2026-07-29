@@ -37,23 +37,40 @@ final class ConfigurableAliasGenerator implements AliasGeneratorInterface {
 		return $result;
 	}
 
-	private function nextSequence(string $name): int {
+	private function nextSequence(string $name, bool $initializeMissing = true): int {
 		$this->db->beginTransaction();
 		try {
 			$update = $this->db->getQueryBuilder();
 			$updated = $update->update('shortlinks_counters')->set('counter_value', $update->func()->add('counter_value', $update->createNamedParameter(1, IQueryBuilder::PARAM_INT)))->where($update->expr()->eq('counter_name', $update->createNamedParameter($name)))->executeStatement();
 			if ($updated !== 1) {
-				throw new \RuntimeException('Alias counter is not initialized');
+				$this->db->rollBack();
+			} else {
+				$select = $this->db->getQueryBuilder();
+				$select->select('counter_value')->from('shortlinks_counters')->where($select->expr()->eq('counter_name', $select->createNamedParameter($name)));
+				$value = (int)$select->executeQuery()->fetchOne();
+				$this->db->commit();
+				return $value;
 			}
-			$select = $this->db->getQueryBuilder();
-			$select->select('counter_value')->from('shortlinks_counters')->where($select->expr()->eq('counter_name', $select->createNamedParameter($name)));
-			$value = (int)$select->executeQuery()->fetchOne();
-			$this->db->commit();
-			return $value;
 		} catch (\Throwable $e) {
 			$this->db->rollBack();
 			throw $e;
 		}
+
+		if (!$initializeMissing) {
+			throw new \RuntimeException('Alias counter could not be initialized');
+		}
+
+		try {
+			$insert = $this->db->getQueryBuilder();
+			$insert->insert('shortlinks_counters')->values([
+				'counter_name' => $insert->createNamedParameter($name),
+				'counter_value' => $insert->createNamedParameter(0, IQueryBuilder::PARAM_INT),
+			])->executeStatement();
+		} catch (\Throwable) {
+			// A concurrent request may have created the unique row first.
+		}
+
+		return $this->nextSequence($name, false);
 	}
 
 	private function encode(int $value, string $alphabet): string {

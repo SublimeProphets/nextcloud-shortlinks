@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
 	mdiCalendarRemoveOutline,
 	mdiChartBoxOutline,
@@ -12,6 +12,8 @@ import {
 	mdiLinkOff,
 	mdiLinkVariant,
 	mdiMagnify,
+	mdiMenu,
+	mdiMenuOpen,
 	mdiStarOutline,
 	mdiTagMultipleOutline,
 	mdiTrashCanOutline,
@@ -19,6 +21,7 @@ import {
 	mdiViewDashboardOutline,
 } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
+import { emit as emitEvent, subscribe, unsubscribe } from '@nextcloud/event-bus'
 import { t } from '@nextcloud/l10n'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
@@ -82,6 +85,21 @@ const activeFilter = ref<ActiveFilter>(props.active === true ? 'active' : props.
 const localTagIds = ref([...props.tagIds])
 const localTagMode = ref<TagMode>(props.tagMode)
 const importInput = ref<HTMLInputElement | null>(null)
+const navigationOpen = ref(true)
+
+function onNavigationToggled(event: unknown) {
+	if (typeof event === 'object' && event !== null && 'open' in event) {
+		navigationOpen.value = Boolean((event as { open: unknown }).open)
+	}
+}
+
+onMounted(() => {
+	const navigation = document.querySelector('.app-navigation')
+	navigationOpen.value = !navigation?.classList.contains('app-navigation--closed')
+	subscribe('navigation-toggled', onNavigationToggled)
+})
+
+onBeforeUnmount(() => unsubscribe('navigation-toggled', onNavigationToggled))
 
 watch(() => props.search, value => { searchQuery.value = value })
 watch(() => props.createdFrom, value => { agePeriod.value = periodForTimestamp(value) })
@@ -156,6 +174,12 @@ function clearTags() {
 	tagOpen.value = false
 }
 
+function toggleNavigation() {
+	const open = !navigationOpen.value
+	navigationOpen.value = open
+	emitEvent('toggle-navigation', { open })
+}
+
 async function exportLinks(format: 'csv' | 'json') {
 	try {
 		const result = await api.exportLinks(format, {
@@ -202,6 +226,17 @@ async function importFile(event: Event) {
 <template>
 	<header class="content-toolbar" :aria-label="t('shortlinks', 'List actions')">
 		<div class="content-toolbar__left">
+			<NcButton class="content-toolbar__navigation-toggle"
+				variant="tertiary"
+				:aria-label="t('shortlinks', navigationOpen ? 'Close navigation' : 'Open navigation')"
+				:title="t('shortlinks', navigationOpen ? 'Close navigation' : 'Open navigation')"
+				:aria-expanded="navigationOpen"
+				aria-controls="app-navigation-vue"
+				@click="toggleNavigation">
+				<template #icon>
+					<NcIconSvgWrapper :path="navigationOpen ? mdiMenuOpen : mdiMenu" />
+				</template>
+			</NcButton>
 			<CreateMenu @link="emit('createLink')" @folder="emit('createFolder')" @tag="emit('createTag')" />
 			<NcBreadcrumbs root-icon="icon-link" :aria-label="t('shortlinks', 'Current view')">
 				<NcBreadcrumb :name="t('shortlinks', folderId !== null || tagIds.length ? 'All links' : activeSystem.label)" force-menu>
@@ -396,7 +431,7 @@ async function importFile(event: Event) {
 .content-toolbar {
 	position: sticky;
 	inset-block-start: 0;
-	z-index: 20;
+	z-index: 1900;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -405,6 +440,14 @@ async function importFile(event: Event) {
 	padding: calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 4);
 	border-block-end: 1px solid var(--color-border);
 	background: var(--color-main-background);
+}
+
+:global(.app-navigation > .app-navigation-toggle-wrapper) {
+	display: none;
+}
+
+.content-toolbar__navigation-toggle {
+	flex: 0 0 auto;
 }
 
 .content-toolbar__left,

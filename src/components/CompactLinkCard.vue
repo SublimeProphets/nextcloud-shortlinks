@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { mdiCursorDefaultClickOutline, mdiOpenInNew } from '@mdi/js'
+import { mdiCursorDefaultClickOutline } from '@mdi/js'
 import { t } from '@nextcloud/l10n'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import type { ShortLink } from '../types'
 
 const props = defineProps<{ link: ShortLink }>()
+const emit = defineEmits<{ open: [link: ShortLink] }>()
 const createdRelative = computed(() => relativeTime(props.link.createdAt))
+const shortUrlLabel = computed(() => `.../${props.link.slug}`)
 
 function relativeTime(timestamp: number): string {
 	const seconds = timestamp - Math.floor(Date.now() / 1000)
@@ -23,17 +25,13 @@ function relativeTime(timestamp: number): string {
 
 <template>
 	<article class="compact-link-card">
-		<a :href="link.shortUrl"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="compact-link-card__main">
+		<button type="button"
+			class="compact-link-card__main"
+			:aria-label="t('shortlinks', 'Open details for {title}', { title: link.title || link.slug })"
+			@click="emit('open', link)">
 			<strong>{{ link.title || link.slug }}</strong>
-			<span class="compact-link-card__url">{{ link.shortUrl }}</span>
-			<NcIconSvgWrapper class="compact-link-card__open"
-				:path="mdiOpenInNew"
-				:size="16"
-				aria-hidden="true" />
-		</a>
+			<span class="compact-link-card__url" :title="link.shortUrl">{{ shortUrlLabel }}</span>
+		</button>
 		<div class="compact-link-card__meta">
 			<span><NcIconSvgWrapper :path="mdiCursorDefaultClickOutline" :size="16" aria-hidden="true" />{{ link.clickCount }} {{ t('shortlinks', 'visits') }}</span>
 			<span>{{ t('shortlinks', 'Created {time}', { time: createdRelative }) }}</span>
@@ -46,17 +44,12 @@ function relativeTime(timestamp: number): string {
 
 .compact-link-card:hover { border-color: var(--color-border-maxcontrast); background: var(--color-background-hover); }
 
-.compact-link-card__main { position: relative; display: grid; min-inline-size: 0; padding-inline-end: 24px; color: var(--color-main-text); text-decoration: none; }
+.compact-link-card__main { display: grid; min-inline-size: 0; inline-size: 100%; margin: 0; padding: 0; border: 0; background: transparent; color: var(--color-main-text); font: inherit; text-align: start; cursor: pointer; }
 
 .compact-link-card__main strong,
 .compact-link-card__url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .compact-link-card__url { color: var(--color-primary-element); font-size: .9rem; }
-
-.compact-link-card__open { position: absolute; inset-block-start: 2px; inset-inline-end: 0; opacity: 0; }
-
-.compact-link-card:hover .compact-link-card__open,
-.compact-link-card__main:focus-visible .compact-link-card__open { opacity: 1; }
 
 .compact-link-card__meta { display: flex; justify-content: space-between; gap: calc(var(--default-grid-baseline) * 2); color: var(--color-text-maxcontrast); font-size: .8rem; }
 

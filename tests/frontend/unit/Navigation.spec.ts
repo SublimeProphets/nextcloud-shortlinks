@@ -5,7 +5,7 @@ import Navigation from '../../../src/components/Navigation.vue'
 
 const global = {
 	stubs: {
-		NcAppNavigation: { template: '<nav><slot/></nav>' },
+		NcAppNavigation: { template: '<nav><slot/><slot name="footer"/></nav>' },
 		NcAppNavigationCaption: { props: ['name'], template: '<h2>{{name}}</h2>' },
 		NcAppNavigationItem: { props: ['name'], emits: ['click'], template: '<button @click="$emit(\'click\')">{{name}}</button>' },
 		NcIconSvgWrapper: true,

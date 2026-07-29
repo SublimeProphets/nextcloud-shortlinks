@@ -21,6 +21,9 @@ importers:
       '@nextcloud/dialogs':
         specifier: ^7.4.1
         version: 7.4.1(@vue/compiler-sfc@3.5.40)(esbuild@0.28.1)(rollup@4.62.3)(typescript@5.9.3)(vite@7.3.6(@types/node@26.1.2)(sass@1.102.0)(yaml@2.9.0))
+      '@nextcloud/event-bus':
+        specifier: ^3.3.3
+        version: 3.3.3
       '@nextcloud/initial-state':
         specifier: ^3.0.0
         version: 3.0.0

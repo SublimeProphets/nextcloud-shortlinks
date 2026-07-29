@@ -70,7 +70,7 @@ function toggleFolder(value: { id: number; open: boolean }) {
 
 <template>
 	<NcAppNavigation :aria-label="t('shortlinks', 'Shortlinks navigation')">
-		<ul>
+		<ul class="navigation-section navigation-section--main">
 			<NcAppNavigationItem v-for="item in systemItems"
 				:key="item.id"
 				:name="t('shortlinks', item.label)"
@@ -108,20 +108,40 @@ function toggleFolder(value: { id: number; open: boolean }) {
 					<NcIconSvgWrapper :path="mdiTagOutline" />
 				</template>
 			</NcAppNavigationItem>
-
-			<NcAppNavigationItem pinned
-				:name="t('shortlinks', 'Trash')"
-				:active="activeSystem === 'trash' && activeFolderId === null"
-				@click="emit('filter', { system: 'trash', folderId: null })">
-				<template #icon>
-					<NcIconSvgWrapper :path="mdiTrashCanOutline" />
-				</template>
-			</NcAppNavigationItem>
-			<NcAppNavigationItem pinned :name="t('shortlinks', 'Settings')" @click="emit('settings')">
-				<template #icon>
-					<NcIconSvgWrapper :path="mdiCogOutline" />
-				</template>
-			</NcAppNavigationItem>
 		</ul>
+		<template #footer>
+			<ul class="navigation-section navigation-section--footer">
+				<NcAppNavigationItem :name="t('shortlinks', 'Trash')"
+					:active="activeSystem === 'trash' && activeFolderId === null"
+					@click="emit('filter', { system: 'trash', folderId: null })">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiTrashCanOutline" />
+					</template>
+				</NcAppNavigationItem>
+				<NcAppNavigationItem :name="t('shortlinks', 'Settings')" @click="emit('settings')">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiCogOutline" />
+					</template>
+				</NcAppNavigationItem>
+			</ul>
+		</template>
 	</NcAppNavigation>
 </template>
+
+<style scoped>
+.navigation-section {
+	display: flex;
+	inline-size: 100%;
+	margin: 0;
+	padding: var(--app-navigation-padding);
+	flex-direction: column;
+	gap: var(--default-grid-baseline);
+	list-style: none;
+}
+
+.navigation-section--footer {
+	flex: 0 0 auto;
+	padding-block-start: calc(var(--default-grid-baseline) * 2);
+	border-block-start: 1px solid var(--color-border);
+}
+</style>
