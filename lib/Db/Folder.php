@@ -18,6 +18,8 @@ use OCP\DB\Types;
  * @method void setName(string $value)
  * @method string getNormalizedName()
  * @method void setNormalizedName(string $value)
+ * @method string getIcon()
+ * @method void setIcon(string $value)
  * @method int getPosition()
  * @method void setPosition(int $value)
  * @method int getCreatedAt()
@@ -31,6 +33,7 @@ final class Folder extends Entity {
 	protected int $parentKey = 0;
 	protected string $name = '';
 	protected string $normalizedName = '';
+	protected string $icon = 'folder';
 	protected int $position = 0;
 	protected int $createdAt = 0;
 	protected int $updatedAt = 0;
@@ -45,6 +48,6 @@ final class Folder extends Entity {
 
 	/** @return array<string, mixed> */
 	public function toArray(int $count = 0): array {
-		return ['id' => $this->getId(), 'parentId' => $this->getParentId(), 'name' => $this->getName(), 'position' => $this->getPosition(), 'count' => $count];
+		return ['id' => $this->getId(), 'parentId' => $this->getParentId(), 'name' => $this->getName(), 'icon' => $this->getIcon(), 'position' => $this->getPosition(), 'count' => $count];
 	}
 }

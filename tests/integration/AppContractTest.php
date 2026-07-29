@@ -48,11 +48,28 @@ final class AppContractTest extends TestCase {
 		self::assertSame([], glob($this->root . '/css/*.map') ?: []);
 	}
 
+	public function testFrontendManagementRoutesAndFolderIconMigrationExist(): void {
+		/** @var array{ocs:list<array{name:string,url:string,verb:string}>} $routes */
+		$routes = require $this->root . '/appinfo/routes.php';
+		$routeKeys = array_map(static fn (array $route): string => $route['verb'] . ' ' . $route['url'], $routes['ocs']);
+		self::assertContains('POST /api/v1/aliases/suggest', $routeKeys);
+		self::assertContains('PUT /api/v1/folders/order', $routeKeys);
+		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
+		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');
+		self::assertNotFalse($migration);
+		self::assertStringContainsString("hasColumn('icon')", $migration);
+	}
+
 	public function testReleaseIgnoreRulesExcludeDevelopmentTrees(): void {
 		$ignore = file_get_contents($this->root . '/.nextcloudignore');
 		self::assertNotFalse($ignore);
 		foreach (['/src', '/tests', '/scripts', '/node_modules', '/vendor-bin', '/js/*.map', '/css/*.map'] as $rule) {
 			self::assertStringContainsString($rule, $ignore);
 		}
+		self::assertStringNotContainsString('/vendor\n', str_replace("\r\n", "\n", $ignore));
+		self::assertFileExists($this->root . '/vendor/autoload.php');
+		$application = file_get_contents($this->root . '/lib/AppInfo/Application.php');
+		self::assertNotFalse($application);
+		self::assertStringContainsString("include_once __DIR__ . '/../../vendor/autoload.php'", $application);
 	}
 }

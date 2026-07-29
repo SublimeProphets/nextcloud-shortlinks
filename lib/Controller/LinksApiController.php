@@ -36,13 +36,15 @@ final class LinksApiController extends AbstractApiOCSController {
 	 * @param string $direction Sort direction
 	 * @param list<int> $tagIds Tag identifiers
 	 * @param string $tagMode Tag matching mode: and or or
+	 * @param null|int $createdFrom Earliest creation timestamp
+	 * @param null|bool $active Filter by active state
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
 	 *
 	 * 200: Links and pagination information
 	 */
 	#[NoAdminRequired]
-	public function index(int $page = 1, int $perPage = 50, string $search = '', string $system = 'all', ?int $folderId = null, string $sort = 'updated_at', string $direction = 'DESC', array $tagIds = [], string $tagMode = 'and'): DataResponse {
-		return $this->respond(fn () => $this->links->list(['search' => $search, 'system' => $system, 'folderId' => $folderId, 'sort' => $sort, 'direction' => $direction, 'tagIds' => $tagIds, 'tagMode' => $tagMode], $page, $perPage));
+	public function index(int $page = 1, int $perPage = 50, string $search = '', string $system = 'all', ?int $folderId = null, string $sort = 'updated_at', string $direction = 'DESC', array $tagIds = [], string $tagMode = 'and', ?int $createdFrom = null, ?bool $active = null): DataResponse {
+		return $this->respond(fn () => $this->links->list(['search' => $search, 'system' => $system, 'folderId' => $folderId, 'sort' => $sort, 'direction' => $direction, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'createdFrom' => $createdFrom, 'active' => $active], $page, $perPage));
 	}
 
 	/**
@@ -179,5 +181,18 @@ final class LinksApiController extends AbstractApiOCSController {
 	#[NoAdminRequired]
 	public function aliasAvailable(string $slug): DataResponse {
 		return $this->respond(fn (): array => ['slug' => $slug, 'available' => $this->links->isAliasAvailable($slug)]);
+	}
+
+	/**
+	 * Suggest an available alias
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Alias suggestion
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function suggestAlias(): DataResponse {
+		return $this->respond(fn (): array => ['slug' => $this->links->suggestAlias()]);
 	}
 }

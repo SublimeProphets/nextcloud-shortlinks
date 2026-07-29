@@ -52,4 +52,13 @@ final class FolderMapper extends QBMapper {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete($this->tableName)->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))->executeStatement();
 	}
+
+	public function updatePositionForOwner(int $id, string $ownerUid, int $position): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->tableName)
+			->set('position', $qb->createNamedParameter($position, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('owner_uid', $qb->createNamedParameter($ownerUid)))
+			->executeStatement();
+	}
 }

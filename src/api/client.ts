@@ -13,11 +13,17 @@ interface OcsResponse<T> { ocs: { data: ApiEnvelope<T> } }
  * @param params Optional query parameters
  */
 async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>): Promise<T> {
-	const response = await axios.request<OcsResponse<T>>({ method, url: generateOcsUrl(`/apps/shortlinks/api/v1${path}`), data, params, headers: { 'OCS-APIRequest': 'true', Accept: 'application/json' } })
-	if (response.status === 204) return {} as T
-	const envelope = response.data.ocs.data
-	if (envelope.error || envelope.data === null) throw new Error(envelope.error?.message ?? 'Empty API response')
-	return envelope.data
+	try {
+		const response = await axios.request<OcsResponse<T>>({ method, url: generateOcsUrl(`/apps/shortlinks/api/v1${path}`), data, params, headers: { 'OCS-APIRequest': 'true', Accept: 'application/json' } })
+		if (response.status === 204) return {} as T
+		const envelope = response.data.ocs.data
+		if (envelope.error || envelope.data === null) throw new Error(envelope.error?.message ?? 'Empty API response')
+		return envelope.data
+	} catch (error) {
+		const responseData = (error as { response?: { data?: OcsResponse<T> } }).response?.data
+		const message = responseData?.ocs?.data?.error?.message
+		throw new Error(message ?? (error instanceof Error ? error.message : String(error)))
+	}
 }
 
 export const api = {
@@ -29,9 +35,11 @@ export const api = {
 	cloneLink: (id: number) => request<ShortLink>('POST', `/links/${id}/clone`),
 	bulk: (ids: number[], changes: Record<string, unknown>) => request<{ updated: number }>('POST', '/links/bulk', { ids, changes }),
 	aliasAvailable: (slug: string) => request<{ slug: string; available: boolean }>('GET', `/aliases/${encodeURIComponent(slug)}`),
+	suggestAlias: () => request<{ slug: string }>('POST', '/aliases/suggest'),
 	listFolders: () => request<Folder[]>('GET', '/folders'),
-	createFolder: (name: string, parentId: number | null = null) => request<Folder>('POST', '/folders', { name, parentId }),
+	createFolder: (name: string, parentId: number | null = null, icon = 'folder') => request<Folder>('POST', '/folders', { name, parentId, icon }),
 	updateFolder: (id: number, data: Partial<Folder>) => request<Folder>('PATCH', `/folders/${id}`, data),
+	reorderFolders: (parentId: number | null, ids: number[]) => request<Folder[]>('PUT', '/folders/order', { parentId, ids }),
 	deleteFolder: (id: number, deleteLinks = false) => request<Record<string, never>>('DELETE', `/folders/${id}`, undefined, { deleteLinks }),
 	listTags: () => request<Tag[]>('GET', '/tags'),
 	createTag: (name: string, color: string | null = null) => request<Tag>('POST', '/tags', { name, color }),

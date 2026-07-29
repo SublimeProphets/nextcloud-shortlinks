@@ -6,11 +6,9 @@ import LinkList from '../../../src/components/LinkList.vue'
 
 const { apiMock } = vi.hoisted(() => ({
 	apiMock: {
-		exportLinks: vi.fn(),
 		deleteLink: vi.fn(),
 		restoreLink: vi.fn(),
 		cloneLink: vi.fn(),
-		bookmarklet: vi.fn(),
 		qrUrl: vi.fn().mockReturnValue('/qr/1'),
 	},
 }))
@@ -44,24 +42,31 @@ const link: ShortLink = {
 	canEdit: true,
 	canShare: true,
 }
-const props = { links: [link], folders: [{ id: 2, parentId: null, name: 'Work', position: 0, count: 1 }], tags: link.tags, loading: false, error: '', selected: new Set<number>(), hasMore: false, system: 'favorites', folderId: 2, tagIds: [3], sort: 'updated_at', direction: 'DESC' as const, tagMode: 'and' as const }
-const global = { stubs: { NcButton: { template: '<button v-bind="$attrs"><slot/></button>' }, NcEmptyContent: true, NcLoadingIcon: true, NcTextField: { props: ['modelValue', 'label'], emits: ['update:modelValue'], template: '<label>{{label}}<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></label>' } } }
+const props = { links: [link], folders: [{ id: 2, parentId: null, name: 'Work', icon: 'folder' as const, position: 0, count: 1 }], tags: link.tags, loading: false, error: '', selected: new Set<number>(), hasMore: false, system: 'favorites', sort: 'updated_at', direction: 'DESC' as const }
+const global = {
+	stubs: {
+		NcActionButton: { props: ['name'], emits: ['click'], template: '<button @click="$emit(\'click\')">{{name}}</button>' },
+		NcActionLink: { props: ['name', 'href'], template: '<a :href="href">{{name}}</a>' },
+		NcActions: { template: '<div><slot/></div>' },
+		NcButton: { template: '<button v-bind="$attrs"><slot/></button>' },
+		NcEmptyContent: { props: ['name', 'description'], template: '<section><h2>{{name}}</h2><p>{{description}}</p><slot name="action"/></section>' },
+		NcIconSvgWrapper: true,
+		NcLoadingIcon: true,
+	},
+}
 
 describe('LinkList', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		apiMock.exportLinks.mockResolvedValue({ content: '{}', mimeType: 'application/json', filename: 'shortlinks.json' })
-		vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test')
-		vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-		vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
 	})
 
-	it('exports the currently visible filter selection', async () => {
+	it('sorts by an interactive table heading and toggles its direction', async () => {
 		const view = render(LinkList, { props, global })
-		await fireEvent.update(view.getByLabelText('Search'), 'summer')
-		await fireEvent.click(view.getByRole('button', { name: 'Export JSON' }))
-		expect(apiMock.exportLinks).toHaveBeenCalledWith('json', { system: 'favorites', folderId: 2, tagIds: [3], tagMode: 'and', search: 'summer' })
-		expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled()
+		await fireEvent.click(view.getByRole('button', { name: 'Sort by Clicks' }))
+		expect(view.emitted('options')?.[0]).toEqual([{ sort: 'click_count', direction: 'DESC' }])
+		await view.rerender({ ...props, sort: 'click_count', direction: 'DESC' })
+		await fireEvent.click(view.getByRole('button', { name: 'Sort by Clicks' }))
+		expect(view.emitted('options')?.[1]).toEqual([{ direction: 'ASC' }])
 	})
 
 	it('offers lifecycle actions only for editable links', async () => {
@@ -73,5 +78,11 @@ describe('LinkList', () => {
 		expect(apiMock.cloneLink).toHaveBeenCalledWith(1)
 		expect(apiMock.deleteLink).toHaveBeenCalledWith(1)
 		expect(view.emitted('refresh')).toHaveLength(2)
+	})
+
+	it('offers creation from the empty state', async () => {
+		const view = render(LinkList, { props: { ...props, links: [] }, global })
+		await fireEvent.click(view.getByRole('button', { name: 'Create short link' }))
+		expect(view.emitted('create')).toHaveLength(1)
 	})
 })

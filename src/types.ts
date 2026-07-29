@@ -1,7 +1,8 @@
 export type AccessMode = 'public' | 'authenticated' | 'users' | 'groups' | 'password' | 'disabled'
+export type FolderIcon = 'archive' | 'folder' | 'personal' | 'projects' | 'star' | 'work'
 
 export interface Tag { id: number; name: string; color: string | null; count: number }
-export interface Folder { id: number; parentId: number | null; name: string; position: number; count: number }
+export interface Folder { id: number; parentId: number | null; name: string; icon: FolderIcon; position: number; count: number }
 export interface ShortLink {
 	id: number; ownerUid: string; folderId: number | null; slug: string; shortUrl: string; targetUrl: string
 	title: string; description: string | null; favorite: boolean; active: boolean; accessMode: AccessMode

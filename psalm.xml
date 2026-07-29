@@ -15,7 +15,7 @@
 		</ignoreFiles>
 	</projectFiles>
 	<extraFiles>
-		<directory name="vendor/nextcloud/ocp/OCP"/>
+		<directory name="vendor-bin/psalm/vendor/nextcloud/ocp/OCP"/>
 	</extraFiles>
 	<issueHandlers>
 		<MissingOverrideAttribute errorLevel="info"/>

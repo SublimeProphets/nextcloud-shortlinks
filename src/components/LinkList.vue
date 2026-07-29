@@ -1,19 +1,30 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import {
+	mdiArrowDown,
+	mdiArrowUp,
+	mdiContentCopy,
+	mdiContentDuplicate,
+	mdiDeleteOutline,
+	mdiQrcode,
+	mdiRestore,
+	mdiSwapVertical,
+} from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActionLink from '@nextcloud/vue/components/NcActionLink'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { Folder, ShortLink, Tag } from '../types'
 
-const props = defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string; folderId: number | null; tagIds: number[]; sort: string; direction: 'ASC' | 'DESC'; tagMode: 'and' | 'or' }>()
-const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number]; refresh: []; search: [query: string]; bulk: [changes: Record<string, unknown>]; more: []; overview: []; options: [value: { sort?: string; direction?: 'ASC' | 'DESC'; tagMode?: 'and' | 'or' }] }>()
-const query = ref('')
+const props = defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string; sort: string; direction: 'ASC' | 'DESC' }>()
+const emit = defineEmits<{ create: []; open: [link: ShortLink]; toggle: [id: number]; refresh: []; bulk: [changes: Record<string, unknown>]; more: []; options: [value: { sort?: string; direction?: 'ASC' | 'DESC' }] }>()
 const bulkFolderId = ref<number | null>(null); const bulkTagId = ref<number | null>(null)
-const bookmarklet = ref('')
 /**
  *
  * @param text Value to copy
@@ -27,38 +38,51 @@ async function remove(link: ShortLink) { try { await api.deleteLink(link.id); em
 async function restore(link: ShortLink) { try { await api.restoreLink(link.id); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 async function removePermanently(link: ShortLink) { if (!window.confirm(t('shortlinks', 'Permanently delete this link?'))) return; try { await api.deleteLink(link.id, true); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
 async function clone(link: ShortLink) { try { await api.cloneLink(link.id); showSuccess(t('shortlinks', 'Link duplicated')); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
-async function exportLinks(format: 'csv' | 'json') { try { const result = await api.exportLinks(format, { system: props.system, folderId: props.folderId ?? undefined, tagIds: props.tagIds, tagMode: props.tagMode, search: query.value }); const url = URL.createObjectURL(new Blob([result.content], { type: result.mimeType })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.filename; anchor.click(); URL.revokeObjectURL(url) } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
-async function importFile(event: Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; if (!file) return; try { if (file.size > 5 * 1024 * 1024) throw new Error(t('shortlinks', 'Import files are limited to 5 MiB')); const format = file.name.toLowerCase().endsWith('.json') ? 'json' : 'csv'; const content = await file.text(); const preview = await api.importLinks(format, content, true, 'skip') as { created?: number; errors?: unknown[] }; if (!window.confirm(t('shortlinks', 'The dry run found {count} valid rows. Continue with import?', { count: preview.created ?? 0 }))) return; const result = await api.importLinks(format, content, false, 'skip') as { created?: number }; showSuccess(t('shortlinks', 'Imported {count} links', { count: result.created ?? 0 })); emit('refresh') } catch (e) { showError(e instanceof Error ? e.message : String(e)) } finally { input.value = '' } }
-async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmarklet()).code } catch (e) { showError(e instanceof Error ? e.message : String(e)) } }
+
+function setSort(field: string) {
+	if (props.sort === field) {
+		emit('options', { direction: props.direction === 'ASC' ? 'DESC' : 'ASC' })
+		return
+	}
+	const descendingByDefault = ['click_count', 'created_at', 'updated_at', 'last_clicked_at'].includes(field)
+	emit('options', { sort: field, direction: descendingByDefault ? 'DESC' : 'ASC' })
+}
+
+function sortIcon(field: string): string {
+	if (props.sort !== field) return mdiSwapVertical
+	return props.direction === 'ASC' ? mdiArrowUp : mdiArrowDown
+}
+
+function ariaSort(field: string): 'ascending' | 'descending' | 'none' {
+	if (props.sort !== field) return 'none'
+	return props.direction === 'ASC' ? 'ascending' : 'descending'
+}
+
+function formatTimestamp(timestamp: number | null): string {
+	if (timestamp === null) return '—'
+	return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(timestamp * 1000))
+}
+
+function visibleDateField(): 'created_at' | 'last_clicked_at' | 'updated_at' {
+	if (props.sort === 'created_at' || props.sort === 'last_clicked_at') return props.sort
+	return 'updated_at'
+}
+
+function visibleDateLabel(): string {
+	if (visibleDateField() === 'created_at') return t('shortlinks', 'Created')
+	if (visibleDateField() === 'last_clicked_at') return t('shortlinks', 'Last used')
+	return t('shortlinks', 'Updated')
+}
+
+function visibleTimestamp(link: ShortLink): number | null {
+	if (visibleDateField() === 'created_at') return link.createdAt
+	if (visibleDateField() === 'last_clicked_at') return link.lastClickedAt
+	return link.updatedAt
+}
 </script>
 
 <template>
-	<section class="links-view" aria-labelledby="links-heading">
-		<header class="links-toolbar">
-			<h2 id="links-heading">
-				{{ t('shortlinks', 'Shortlinks') }}
-			</h2><NcTextField v-model="query"
-				type="search"
-				:label="t('shortlinks', 'Search')"
-				@keyup.enter="emit('search', query)" />
-			<NcButton @click="exportLinks('csv')">
-				{{ t('shortlinks', 'Export CSV') }}
-			</NcButton><NcButton @click="exportLinks('json')">
-				{{ t('shortlinks', 'Export JSON') }}
-			</NcButton><NcButton @click="emit('overview')">
-				{{ t('shortlinks', 'Statistics overview') }}
-			</NcButton><label class="file-button">{{ t('shortlinks', 'Import CSV or JSON') }}<input type="file" accept=".csv,.json,text/csv,application/json" @change="importFile"></label><NcButton @click="loadBookmarklet">
-				{{ t('shortlinks', 'Bookmarklet') }}
-			</NcButton><a v-if="bookmarklet"
-				:href="bookmarklet"
-				class="bookmarklet"
-				draggable="true">{{ t('shortlinks', 'Drag Shortlinks to your bookmarks') }}</a>
-		</header>
-		<div class="list-options">
-			<label>{{ t('shortlinks', 'Sort by') }}<select :value="sort" @change="emit('options', { sort: ($event.target as HTMLSelectElement).value })"><option value="updated_at">{{ t('shortlinks', 'Updated') }}</option><option value="created_at">{{ t('shortlinks', 'Created') }}</option><option value="last_clicked_at">{{ t('shortlinks', 'Last used') }}</option><option value="click_count">{{ t('shortlinks', 'Clicks') }}</option><option value="title">{{ t('shortlinks', 'Title') }}</option><option value="slug">{{ t('shortlinks', 'Alias') }}</option></select></label>
-			<label>{{ t('shortlinks', 'Direction') }}<select :value="direction" @change="emit('options', { direction: ($event.target as HTMLSelectElement).value as 'ASC' | 'DESC' })"><option value="DESC">{{ t('shortlinks', 'Descending') }}</option><option value="ASC">{{ t('shortlinks', 'Ascending') }}</option></select></label>
-			<label>{{ t('shortlinks', 'Tag matching') }}<select :value="tagMode" @change="emit('options', { tagMode: ($event.target as HTMLSelectElement).value as 'and' | 'or' })"><option value="and">{{ t('shortlinks', 'All selected tags') }}</option><option value="or">{{ t('shortlinks', 'Any selected tag') }}</option></select></label>
-		</div>
+	<section class="links-view" :aria-label="t('shortlinks', 'Short links')">
 		<div v-if="selected.size"
 			class="bulk-toolbar"
 			role="toolbar"
@@ -85,10 +109,48 @@ async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmark
 				{{ t('shortlinks', 'Retry') }}
 			</NcButton>
 		</p>
-		<NcEmptyContent v-else-if="links.length === 0" :name="t('shortlinks', 'No short links yet')" :description="t('shortlinks', 'Create your first short link to get started.')" />
+		<NcEmptyContent v-else-if="links.length === 0" :name="t('shortlinks', 'No short links yet')" :description="t('shortlinks', 'Create your first short link to get started.')">
+			<template #action>
+				<NcButton variant="primary" @click="emit('create')">
+					{{ t('shortlinks', 'Create short link') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
 		<div v-else class="table-scroll">
 			<table>
-				<thead><tr><th><span class="visually-hidden">{{ t('shortlinks', 'Select') }}</span></th><th>{{ t('shortlinks', 'Title') }}</th><th>{{ t('shortlinks', 'Short link') }}</th><th>{{ t('shortlinks', 'Target') }}</th><th>{{ t('shortlinks', 'Tags') }}</th><th>{{ t('shortlinks', 'Clicks') }}</th><th>{{ t('shortlinks', 'Status') }}</th><th>{{ t('shortlinks', 'Actions') }}</th></tr></thead><tbody>
+				<thead>
+					<tr>
+						<th><span class="visually-hidden">{{ t('shortlinks', 'Select') }}</span></th>
+						<th :aria-sort="ariaSort('title')">
+							<button class="table-sort-button" :aria-label="`${t('shortlinks', 'Sort by')} ${t('shortlinks', 'Title')}`" @click="setSort('title')">
+								<span>{{ t('shortlinks', 'Title') }}</span>
+								<NcIconSvgWrapper :path="sortIcon('title')" :size="18" aria-hidden="true" />
+							</button>
+						</th>
+						<th :aria-sort="ariaSort('slug')">
+							<button class="table-sort-button" :aria-label="`${t('shortlinks', 'Sort by')} ${t('shortlinks', 'Alias')}`" @click="setSort('slug')">
+								<span>{{ t('shortlinks', 'Short link') }}</span>
+								<NcIconSvgWrapper :path="sortIcon('slug')" :size="18" aria-hidden="true" />
+							</button>
+						</th>
+						<th>{{ t('shortlinks', 'Target') }}</th>
+						<th>{{ t('shortlinks', 'Tags') }}</th>
+						<th :aria-sort="ariaSort('click_count')">
+							<button class="table-sort-button" :aria-label="`${t('shortlinks', 'Sort by')} ${t('shortlinks', 'Clicks')}`" @click="setSort('click_count')">
+								<span>{{ t('shortlinks', 'Clicks') }}</span>
+								<NcIconSvgWrapper :path="sortIcon('click_count')" :size="18" aria-hidden="true" />
+							</button>
+						</th>
+						<th :aria-sort="ariaSort(visibleDateField())">
+							<button class="table-sort-button" :aria-label="`${t('shortlinks', 'Sort by')} ${visibleDateLabel()}`" @click="setSort(visibleDateField())">
+								<span>{{ visibleDateLabel() }}</span>
+								<NcIconSvgWrapper :path="sortIcon(visibleDateField())" :size="18" aria-hidden="true" />
+							</button>
+						</th>
+						<th>{{ t('shortlinks', 'Status') }}</th>
+						<th>{{ t('shortlinks', 'Actions') }}</th>
+					</tr>
+				</thead><tbody>
 					<tr v-for="link in links" :key="link.id">
 						<td>
 							<input type="checkbox"
@@ -109,20 +171,43 @@ async function loadBookmarklet() { try { bookmarklet.value = (await api.bookmark
 								class="tag-dot"
 								:style="{ backgroundColor: tag.color }"
 								aria-hidden="true" />{{ tag.name }}</span>
-						</td><td>{{ link.clickCount }}</td><td>{{ link.active ? t('shortlinks', 'Active') : t('shortlinks', 'Inactive') }}</td><td class="row-actions">
-							<NcButton :href="api.qrUrl(link.id)" target="_blank">
-								QR
-							</NcButton><NcButton @click="copy(link.targetUrl)">
-								{{ t('shortlinks', 'Copy target') }}
-							</NcButton><NcButton v-if="!link.deletedAt" @click="clone(link)">
-								{{ t('shortlinks', 'Duplicate') }}
-							</NcButton><NcButton v-if="link.deletedAt && link.canEdit" @click="restore(link)">
-								{{ t('shortlinks', 'Restore') }}
-							</NcButton><NcButton v-if="link.deletedAt && link.canEdit" @click="removePermanently(link)">
-								{{ t('shortlinks', 'Delete permanently') }}
-							</NcButton><NcButton v-else-if="link.canEdit" @click="remove(link)">
-								{{ t('shortlinks', 'Delete') }}
-							</NcButton>
+						</td><td>{{ link.clickCount }}</td>
+						<td class="date-cell">
+							{{ formatTimestamp(visibleTimestamp(link)) }}
+						</td>
+						<td>{{ link.active ? t('shortlinks', 'Active') : t('shortlinks', 'Inactive') }}</td><td class="row-actions">
+							<NcActions force-menu :aria-label="t('shortlinks', 'Actions for {title}', { title: link.title || link.slug })">
+								<NcActionLink name="QR" :href="api.qrUrl(link.id)" target="_blank">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiQrcode" />
+									</template>
+								</NcActionLink>
+								<NcActionButton :name="t('shortlinks', 'Copy target')" @click="copy(link.targetUrl)">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiContentCopy" />
+									</template>
+								</NcActionButton>
+								<NcActionButton v-if="!link.deletedAt" :name="t('shortlinks', 'Duplicate')" @click="clone(link)">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiContentDuplicate" />
+									</template>
+								</NcActionButton>
+								<NcActionButton v-if="link.deletedAt && link.canEdit" :name="t('shortlinks', 'Restore')" @click="restore(link)">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiRestore" />
+									</template>
+								</NcActionButton>
+								<NcActionButton v-if="link.deletedAt && link.canEdit" :name="t('shortlinks', 'Delete permanently')" @click="removePermanently(link)">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiDeleteOutline" />
+									</template>
+								</NcActionButton>
+								<NcActionButton v-else-if="link.canEdit" :name="t('shortlinks', 'Delete')" @click="remove(link)">
+									<template #icon>
+										<NcIconSvgWrapper :path="mdiDeleteOutline" />
+									</template>
+								</NcActionButton>
+							</NcActions>
 						</td>
 					</tr>
 				</tbody>

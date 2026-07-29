@@ -49,7 +49,7 @@ describe('shortlinks store', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		const { state } = useShortlinks()
-		Object.assign(state, { links: [], folders: [], tags: [], loading: false, error: '', page: 1, hasMore: false, search: '', system: 'all', folderId: null, tagIds: [] })
+		Object.assign(state, { links: [], folders: [], tags: [], loading: false, error: '', page: 1, hasMore: false, search: '', createdFrom: null, active: null, system: 'all', folderId: null, tagIds: [], tagMode: 'and', sort: 'updated_at', direction: 'DESC' })
 		state.selected.clear()
 		apiMock.listFolders.mockResolvedValue([])
 		apiMock.listTags.mockResolvedValue([])

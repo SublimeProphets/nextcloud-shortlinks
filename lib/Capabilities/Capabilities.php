@@ -19,6 +19,6 @@ final class Capabilities implements ICapability {
 		if ($this->settings->bool('public_creation')) {
 			$features[] = 'public-creation';
 		}
-		return ['shortlinks' => ['version' => '1.0.0', 'apiVersion' => 1, 'enabled' => $this->settings->bool('enabled'), 'features' => $features, 'aliasModes' => ['base36', 'base62', 'random'], 'redirectStatuses' => $this->settings->redirectStatuses()]];
+		return ['shortlinks' => ['version' => '1.1.0', 'apiVersion' => 1, 'enabled' => $this->settings->bool('enabled'), 'features' => $features, 'aliasModes' => ['base36', 'base62', 'random'], 'redirectStatuses' => $this->settings->redirectStatuses()]];
 	}
 }

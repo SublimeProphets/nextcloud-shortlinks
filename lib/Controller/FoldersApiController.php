@@ -43,8 +43,8 @@ final class FoldersApiController extends AbstractApiOCSController {
 	#[NoAdminRequired]
 	public function create(): DataResponse {
 		return $this->respond(function (): array {
-			$p = $this->payload(['name', 'parentId', 'position']);
-			return $this->folders->create((string)($p['name'] ?? ''), isset($p['parentId']) ? (int)$p['parentId'] : null, (int)($p['position'] ?? 0));
+			$p = $this->payload(['name', 'parentId', 'position', 'icon']);
+			return $this->folders->create((string)($p['name'] ?? ''), isset($p['parentId']) ? (int)$p['parentId'] : null, (int)($p['position'] ?? 0), (string)($p['icon'] ?? 'folder'));
 		}, Http::STATUS_CREATED);
 	}
 	/**
@@ -58,8 +58,24 @@ final class FoldersApiController extends AbstractApiOCSController {
 	#[NoAdminRequired]
 	public function update(int $id): DataResponse {
 		return $this->respond(function () use ($id): array {
-			$p = $this->payload(['name', 'parentId', 'position']);
-			return $this->folders->update($id, isset($p['name']) ? (string)$p['name'] : null, array_key_exists('parentId', $p) && $p['parentId'] !== null ? (int)$p['parentId'] : null, array_key_exists('parentId', $p), isset($p['position']) ? (int)$p['position'] : null);
+			$p = $this->payload(['name', 'parentId', 'position', 'icon']);
+			return $this->folders->update($id, isset($p['name']) ? (string)$p['name'] : null, array_key_exists('parentId', $p) && $p['parentId'] !== null ? (int)$p['parentId'] : null, array_key_exists('parentId', $p), isset($p['position']) ? (int)$p['position'] : null, isset($p['icon']) ? (string)$p['icon'] : null);
+		});
+	}
+
+	/**
+	 * Reorder sibling folders
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Updated folder tree
+	 */
+	#[NoAdminRequired]
+	public function reorder(): DataResponse {
+		return $this->respond(function (): array {
+			$p = $this->payload(['parentId', 'ids']);
+			$ids = is_array($p['ids'] ?? null) ? $p['ids'] : [];
+			return $this->folders->reorder(isset($p['parentId']) ? (int)$p['parentId'] : null, $ids);
 		});
 	}
 	/**

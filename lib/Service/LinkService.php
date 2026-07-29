@@ -328,6 +328,16 @@ final class LinkService {
 		return !$this->links->slugExists($slug);
 	}
 
+	public function suggestAlias(): string {
+		for ($attempt = 0; $attempt < 20; ++$attempt) {
+			$slug = $this->slugValidator->normalize($this->aliasGenerator->generate());
+			if (!$this->links->slugExists($slug)) {
+				return $slug;
+			}
+		}
+		throw new ConflictException('Could not generate an available alias');
+	}
+
 	private function find(int $id): ShortLink {
 		try {
 			return $this->links->find($id);

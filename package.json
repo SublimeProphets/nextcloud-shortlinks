@@ -1,6 +1,6 @@
 {
   "name": "shortlinks",
-  "version": "1.0.0",
+  "version": "1.1.4",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "license": "AGPL-3.0-or-later",
@@ -27,6 +27,7 @@
     "extends @nextcloud/browserslist-config"
   ],
   "dependencies": {
+    "@mdi/js": "7.4.47",
     "@nextcloud/axios": "^2.6.0",
     "@nextcloud/dialogs": "^7.4.1",
     "@nextcloud/initial-state": "^3.0.0",

@@ -203,6 +203,27 @@
                         }
                     },
                     {
+                        "name": "createdFrom",
+                        "in": "query",
+                        "description": "Earliest creation timestamp",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "in": "query",
+                        "description": "Filter by active state",
+                        "schema": {
+                            "type": "boolean",
+                            "nullable": true,
+                            "default": null
+                        }
+                    },
+                    {
                         "name": "OCS-APIRequest",
                         "in": "header",
                         "description": "Required to be true for the API request to pass",
@@ -1239,6 +1260,98 @@
                 }
             }
         },
+        "/ocs/v2.php/apps/shortlinks/api/v1/aliases/suggest": {
+            "post": {
+                "operationId": "links_api-suggest-alias",
+                "summary": "Suggest an available alias",
+                "tags": [
+                    "links_api"
+                ],
+                "security": [
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Alias suggestion",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Current user is not logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/ocs/v2.php/apps/shortlinks/api/v1/folders": {
             "get": {
                 "operationId": "folders_api-index",
@@ -1359,6 +1472,98 @@
                 "responses": {
                     "201": {
                         "description": "Folder created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Current user is not logged in",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ocs/v2.php/apps/shortlinks/api/v1/folders/order": {
+            "put": {
+                "operationId": "folders_api-reorder",
+                "summary": "Reorder sibling folders",
+                "tags": [
+                    "folders_api"
+                ],
+                "security": [
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated folder tree",
                         "content": {
                             "application/json": {
                                 "schema": {

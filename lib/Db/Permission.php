@@ -23,10 +23,10 @@ use OCP\DB\Types;
  */
 final class Permission extends Entity {
 	protected int $linkId = 0;
-	protected string $principalType = 'user';
+	protected string $principalType = '';
 	protected string $principalId = '';
-	protected string $purpose = 'management';
-	protected string $permission = 'view';
+	protected string $purpose = '';
+	protected string $permission = '';
 	protected int $createdAt = 0;
 
 	public function __construct() {

@@ -26,6 +26,8 @@ final class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		include_once __DIR__ . '/../../vendor/autoload.php';
+
 		$context->registerServiceAlias(AliasGeneratorInterface::class, ConfigurableAliasGenerator::class);
 		$context->registerServiceAlias(UserAgentParserInterface::class, DeviceDetectorParser::class);
 		$context->registerServiceAlias(GeoResolverInterface::class, MaxMindGeoResolver::class);

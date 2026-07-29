@@ -17,6 +17,7 @@ use OCP\IDBConnection;
 
 final class FolderService {
 	private const MAX_DEPTH = 10;
+	private const ICONS = ['archive', 'folder', 'personal', 'projects', 'star', 'work'];
 
 	public function __construct(
 		private readonly FolderMapper $folders,
@@ -34,7 +35,7 @@ final class FolderService {
 	}
 
 	/** @return array<string,mixed> */
-	public function create(string $name, ?int $parentId, int $position = 0): array {
+	public function create(string $name, ?int $parentId, int $position = 0, string $icon = 'folder'): array {
 		$uid = $this->policy->currentUid();
 		$name = $this->validateName($name);
 		$this->assertParent($uid, null, $parentId);
@@ -45,6 +46,7 @@ final class FolderService {
 		$folder->setParentKey($parentId ?? 0);
 		$folder->setName($name);
 		$folder->setNormalizedName(mb_strtolower($name));
+		$folder->setIcon($this->validateIcon($icon));
 		$folder->setPosition(max(0, $position));
 		$folder->setCreatedAt($now);
 		$folder->setUpdatedAt($now);
@@ -61,7 +63,7 @@ final class FolderService {
 	}
 
 	/** @return array<string,mixed> */
-	public function update(int $id, ?string $name, ?int $parentId, bool $parentProvided, ?int $position): array {
+	public function update(int $id, ?string $name, ?int $parentId, bool $parentProvided, ?int $position, ?string $icon = null): array {
 		$uid = $this->policy->currentUid();
 		$folder = $this->find($id, $uid);
 		if ($parentProvided) {
@@ -78,6 +80,9 @@ final class FolderService {
 		}
 		if ($position !== null) {
 			$folder->setPosition(max(0, $position));
+		}
+		if ($icon !== null) {
+			$folder->setIcon($this->validateIcon($icon));
 		}
 		$folder->setUpdatedAt($this->time->getTime());
 		try {
@@ -113,12 +118,50 @@ final class FolderService {
 		$this->audit->record('folder_deleted', $uid, null, ['folderId' => $id, 'linksDeleted' => $deleteLinks]);
 	}
 
+	/** @param list<int> $ids @return list<array<string,mixed>> */
+	public function reorder(?int $parentId, array $ids): array {
+		$uid = $this->policy->currentUid();
+		$all = $this->folders->findAllForOwner($uid);
+		$siblingIds = array_values(array_map(
+			static fn (Folder $folder): int => $folder->getId(),
+			array_filter($all, static fn (Folder $folder): bool => $folder->getParentId() === $parentId),
+		));
+		$ids = array_values(array_unique(array_map('intval', $ids)));
+		$expected = $siblingIds;
+		$provided = $ids;
+		sort($expected);
+		sort($provided);
+		if ($ids === [] || $expected !== $provided) {
+			throw new ValidationException('Folder order must contain every sibling exactly once', ['ids' => 'invalid']);
+		}
+		$this->db->beginTransaction();
+		try {
+			foreach ($ids as $position => $id) {
+				$this->folders->updatePositionForOwner($id, $uid, $position);
+			}
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
+		$this->audit->record('folders_reordered', $uid, null, ['parentId' => $parentId, 'ids' => implode(',', $ids)]);
+		return $this->list();
+	}
+
 	private function validateName(string $name): string {
 		$name = trim($name);
 		if ($name === '' || mb_strlen($name) > 128 || preg_match('/[\x00-\x1f\x7f]/u', $name)) {
 			throw new ValidationException('Folder name is invalid', ['name' => 'invalid']);
 		}
 		return $name;
+	}
+
+	private function validateIcon(string $icon): string {
+		$icon = strtolower(trim($icon));
+		if (!in_array($icon, self::ICONS, true)) {
+			throw new ValidationException('Folder icon is invalid', ['icon' => 'invalid']);
+		}
+		return $icon;
 	}
 
 	private function find(int $id, string $uid): Folder {
