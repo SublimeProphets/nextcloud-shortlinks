@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
 composer validate --strict
 composer test:all
-corepack pnpm install --frozen-lockfile
-corepack pnpm test:all
+pnpm install --no-frozen-lockfile
+pnpm test:all

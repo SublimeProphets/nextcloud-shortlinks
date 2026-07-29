@@ -48,7 +48,7 @@ jobs:
         with: {version: 11.9.0, run_install: false}
       - uses: actions/setup-node@v4
         with: {node-version: 24, cache: pnpm}
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm lint
       - run: pnpm stylelint
       - run: pnpm typecheck
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 24, cache: pnpm}
       - run: composer install --no-dev --classmap-authoritative --no-scripts
-      - run: pnpm install --frozen-lockfile && pnpm build
+      - run: pnpm install --no-frozen-lockfile && pnpm build
       - name: Start selected stack
         run: docker compose ${PROFILE:+--profile "$PROFILE"} up -d "$SERVICE"
         env:

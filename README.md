@@ -13,18 +13,19 @@ The app ID is `shortlinks`, the PHP namespace is `OCA\\Shortlinks`, and the lice
 
 ## Quick start
 
-Requirements: Git, Docker Desktop/Engine with Compose, Composer, and Node 24 with pnpm 11.
+Requirements: Git, Docker Desktop/Engine with Compose, Composer, Node 24, and pnpm 11. Some transitive Nextcloud and build dependencies require Node 24.
 
 ```bash
 cp .env.example .env
 composer install
-corepack pnpm install --frozen-lockfile
-corepack pnpm build
+npm install --global pnpm@latest-11
+pnpm install --no-frozen-lockfile
+pnpm build
 docker compose up -d db redis nextcloud34 cron
 bash ./scripts/install.sh nextcloud34
 ```
 
-On Windows PowerShell, use `Copy-Item .env.example .env` and `./scripts/install.ps1`. Open `http://localhost:8080`. Development-only accounts are `admin` / `admin-dev-only`, `alice` / `alice-dev-only`, and `bob` / `bob-dev-only`; change them whenever the environment is reachable by anyone else.
+On Windows PowerShell with NVM, first run `nvm install 24` and `nvm use 24`, then use `Copy-Item .env.example .env` and `./scripts/install.ps1`. The npm-based pnpm installation avoids stale Corepack signing keys. If an existing Corepack shim blocks the global pnpm install, repair it with `npm install --global corepack@latest` followed by `corepack enable pnpm`. Open `http://localhost:8080`. Development-only accounts are `admin` / `admin-dev-only`, `alice` / `alice-dev-only`, and `bob` / `bob-dev-only`; change them whenever the environment is reachable by anyone else.
 
 Run `docker compose --profile nextcloud35 up -d nextcloud35`, `--profile postgres up -d nextcloud-postgres`, or `--profile sqlite up -d nextcloud-sqlite` for the other matrix variants. `scripts/reset.*` refuses unexpected Compose project names and removes only project-scoped containers and named volumes.
 
@@ -50,7 +51,7 @@ Only signed-in Nextcloud users can manage links. Redirects are public only when 
 
 ```bash
 composer test:all
-corepack pnpm test:all
+pnpm test:all
 docker compose exec -u www-data nextcloud34 php occ shortlinks:health
 docker compose exec -u www-data nextcloud34 php occ shortlinks:seed --user=alice
 docker compose exec -u www-data nextcloud34 php occ app:check-code shortlinks
@@ -60,7 +61,7 @@ See [development](docs/development.md), [testing](docs/testing.md), [architectur
 
 ## Production installation
 
-Build with `composer install --no-dev --classmap-authoritative --no-scripts` and `corepack pnpm install --frozen-lockfile && corepack pnpm build`. `--no-scripts` prevents isolated development tools from being installed during production packaging. Package the files permitted by `.nextcloudignore` into a directory named `shortlinks`, place it in a configured Nextcloud apps directory, then run `occ app:enable shortlinks`. Configure system cron and review the Shortlinks administration section before use. The Compose environment is for development only.
+Build with `composer install --no-dev --classmap-authoritative --no-scripts` and `pnpm install --no-frozen-lockfile && pnpm build`. `--no-scripts` prevents isolated development tools from being installed during production packaging. Package the files permitted by `.nextcloudignore` into a directory named `shortlinks`, place it in a configured Nextcloud apps directory, then run `occ app:enable shortlinks`. Configure system cron and review the Shortlinks administration section before use. The Compose environment is for development only.
 
 For an isolated release artifact, run `make package` or `bash scripts/package.sh`; on Windows PowerShell use `pnpm build` followed by `./scripts/package.ps1`. The unsigned archive and SHA-512 checksum are written below `build/appstore/`. The Bash release path additionally normalises archive ownership/order and the gzip header for bit-reproducible CI builds.
 

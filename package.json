@@ -20,40 +20,45 @@
     "test:a11y": "vitest run tests/frontend/a11y",
     "test:e2e": "playwright test",
     "test:security": "pnpm audit --audit-level=high",
+    "deps:update": "pnpm update && pnpm audit --audit-level=high",
     "test:all": "pnpm lint && pnpm stylelint && pnpm typecheck && pnpm translations:check && pnpm test && pnpm build"
   },
-  "browserslist": ["extends @nextcloud/browserslist-config"],
+  "browserslist": [
+    "extends @nextcloud/browserslist-config"
+  ],
   "dependencies": {
-    "@nextcloud/axios": "^2.5.0",
-    "@nextcloud/dialogs": "^6.2.0",
+    "@nextcloud/axios": "^2.6.0",
+    "@nextcloud/dialogs": "^7.4.1",
     "@nextcloud/initial-state": "^3.0.0",
-    "@nextcloud/l10n": "^3.3.0",
+    "@nextcloud/l10n": "^3.4.1",
     "@nextcloud/router": "^3.1.0",
-    "@nextcloud/vue": "^9.8.2",
-    "vue": "^3.5.35"
+    "@nextcloud/vue": "^9.9.0",
+    "vue": "^3.5.40"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^2.1.4",
-    "@eslint/js": "^8.57.0",
+    "@eslint/js": "^8.57.1",
     "@nextcloud/browserslist-config": "^3.1.2",
     "@nextcloud/eslint-config": "^8.4.2",
-    "@nextcloud/stylelint-config": "^3.1.1",
-    "@nextcloud/vite-config": "^2.5.2",
-    "@playwright/test": "^1.57.0",
+    "@nextcloud/stylelint-config": "^3.2.2",
+    "@nextcloud/vite-config": "^2.5.4",
+    "@playwright/test": "^1.62.0",
     "@testing-library/vue": "^8.1.0",
-    "@types/qrcode": "^1.5.5",
-    "axe-core": "^4.11.0",
-    "@vitejs/plugin-vue": "^6.0.1",
-    "@vitest/coverage-v8": "^4.0.0",
-    "@vue/test-utils": "^2.4.6",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
+    "axe-core": "^4.12.1",
     "eslint": "^8.57.1",
-    "jsdom": "^27.0.0",
-    "stylelint": "^16.25.0",
+    "jsdom": "^27.4.0",
+    "stylelint": "^17.14.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.2",
-    "vitest": "^4.0.0",
-    "vue-tsc": "^3.1.4"
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.8"
   },
-  "engines": {"node": "^24.0.0"}
+  "engines": {
+    "node": "^24.0.0"
+  }
 }

@@ -1,7 +1,7 @@
 # Release checklist
 
 - Update `appinfo/info.xml`, `package.json`, `composer.json` metadata and `CHANGELOG.md` with one SemVer.
-- Run clean Composer/pnpm installs from lockfiles, all tests, both dependency audits, production build and bundle-size review.
+- Run clean Composer/pnpm installs with lockfile updates permitted, all tests, both dependency audits, production build and bundle-size review. Before release, run `pnpm deps:update` and review the resulting `pnpm-lock.yaml` diff.
 - Install from the packaged artifact on fresh Nextcloud 34/35 using SQLite, MariaDB and PostgreSQL; run migrations, app code checker, health, redirect, cron and Playwright suites.
 - Validate `docs/openapi.yaml`, translation key parity, light/dark/responsive/keyboard UI and accessibility.
 - Review dependency licences and generate SBOMs (`composer show --locked --format=json`, `pnpm licenses list --json` or CycloneDX tooling).

@@ -1,5 +1,7 @@
 # Testing
 
+Use Node 24 and pnpm 11. Install pnpm with `npm install --global pnpm@latest-11`; this path does not depend on Corepack's registry signing-key cache.
+
 ## Local commands
 
 ```bash
@@ -10,13 +12,15 @@ composer psalm
 composer test:unit
 composer test:integration
 composer audit
-corepack pnpm lint
-corepack pnpm stylelint
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm build
-corepack pnpm audit --audit-level high
+pnpm lint
+pnpm stylelint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm audit --audit-level high
 ```
+
+Install frontend dependencies with `pnpm install --no-frozen-lockfile`. To refresh all versions allowed by `package.json` and immediately audit the result, run `pnpm deps:update`, review the lockfile diff, and execute `pnpm test:all`. Keep `pnpm-lock.yaml` committed so a reviewed dependency graph remains available, but do not rely on frozen installation as an update policy.
 
 Run Playwright against a seeded instance with `NEXTCLOUD_URL=http://localhost:8080 NEXTCLOUD_TEST_USER=alice NEXTCLOUD_TEST_PASSWORD=alice-dev-only pnpm test:e2e`. Browsers must first be installed with `pnpm exec playwright install`. The suite covers Chromium, Firefox and a mobile Chromium viewport; select one with `--project=chromium` when a smoke test is sufficient.
 

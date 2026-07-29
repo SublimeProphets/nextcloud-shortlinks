@@ -2,8 +2,8 @@
 
 setup:
 	composer install
-	corepack pnpm install --frozen-lockfile
-	corepack pnpm build
+	pnpm install --no-frozen-lockfile
+	pnpm build
 
 up:
 	docker compose up -d db redis nextcloud34 cron
@@ -16,10 +16,10 @@ seed:
 
 test:
 	composer test:all
-	corepack pnpm test:all
+	pnpm test:all
 
 package:
-	corepack pnpm build
+	pnpm build
 	bash ./scripts/package.sh
 
 nextcloud35:

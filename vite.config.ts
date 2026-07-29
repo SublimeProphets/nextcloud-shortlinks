@@ -15,7 +15,8 @@ export default createAppConfig(
 							const moduleId = id.replaceAll('\\', '/')
 							if (!moduleId.includes('/node_modules/')) return undefined
 							if (/\/(?:vue|vue-router|@vue\+[^/]+)@/.test(moduleId)) return 'vue-runtime'
-							if (/\/(?:@nextcloud\+(?:vue|dialogs)|floating-vue|@floating-ui|focus-trap|tabbable|@vueuse)@/.test(moduleId)) return 'nextcloud-ui'
+							if (/\/@nextcloud\+dialogs@/.test(moduleId)) return 'nextcloud-dialogs'
+							if (/\/(?:@nextcloud\+vue|floating-vue|@floating-ui|focus-trap|tabbable|@vueuse)@/.test(moduleId)) return 'nextcloud-ui'
 							if (/\/vite-plugin-node-polyfills@|\/(?:buffer|process|util|events|path-browserify|readable-stream)@/.test(moduleId)) return 'browser-polyfills'
 							return 'vendor'
 						},
