@@ -74,7 +74,7 @@ async function copyQr() {
 			class="compact-link-card__main"
 			:aria-label="t('shortlinks', 'Open details for {title}', { title: link.title || link.slug })"
 			@click="emit('open', link)">
-			<LinkThumbnail size="normal" :src="api.thumbnailUrl(link.id)" :alt="t('shortlinks', 'Share thumbnail for {title}', { title: link.title || link.slug })" />
+			<LinkThumbnail size="normal" :src="link.thumbnailUrl ? api.thumbnailUrl(link.id) : ''" :alt="t('shortlinks', 'Share thumbnail for {title}', { title: link.title || link.slug })" />
 			<span class="compact-link-card__identity"><strong>{{ link.title || link.slug }}</strong><span class="compact-link-card__url" :title="link.shortUrl">{{ shortUrlLabel }}</span></span>
 		</button>
 

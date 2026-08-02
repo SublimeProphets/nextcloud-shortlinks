@@ -14,6 +14,7 @@ return [
 		['name' => 'thumbnail#show', 'url' => '/thumbnail/{id}', 'verb' => 'GET'],
 		['name' => 'admin_settings#save', 'url' => '/settings/admin', 'verb' => 'PUT'],
 		['name' => 'admin_settings#maintenance', 'url' => '/settings/admin/maintenance/{action}', 'verb' => 'POST'],
+		['name' => 'admin_settings#refreshThumbnails', 'url' => '/settings/admin/thumbnails/refresh', 'verb' => 'POST'],
 		['name' => 'public_creation#shorten', 'url' => '/public/v1/shorten', 'verb' => 'POST'],
 	],
 	'ocs' => [

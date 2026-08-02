@@ -55,6 +55,22 @@ interface AdminSettingsState {
 	user_deletion_mode: 'retain'
 }
 
+interface ThumbnailStatus {
+	total: number
+	found: number
+	refreshed: number
+	lastRefresh: number | null
+}
+
+interface ThumbnailRefreshResult {
+	processed: number
+	found: number
+	failed: number
+	nextAfterId: number
+	hasMore: boolean
+	stats: ThumbnailStatus
+}
+
 const defaultRedirectStatuses = [301, 302, 307, 308]
 const defaultSchemes = ['http', 'https']
 const unsafeSchemes = ['about', 'blob', 'data', 'file', 'javascript', 'vbscript']
@@ -68,9 +84,12 @@ const lists = reactive({
 })
 const geo = loadState<Record<string, unknown>>('shortlinks', 'geo-status')
 const systemStatus = loadState<{ phpVersion: string; phpSupported: boolean; jobs: Record<string, number> }>('shortlinks', 'system-status')
+const thumbnailStatus = reactive(loadState<ThumbnailStatus>('shortlinks', 'thumbnail-status'))
 const saving = ref(false)
 const maintenanceDays = ref(30)
 const runningMaintenance = ref('')
+const refreshingThumbnails = ref(false)
+const thumbnailProgress = ref({ processed: 0, failed: 0 })
 const newRedirectStatus = ref('')
 const newScheme = ref('')
 const customSchemeWarning = t('shortlinks', 'Custom schemes open in the visitor browser. Domain rules apply only to URLs that contain a host.')
@@ -180,6 +199,38 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 	} finally {
 		runningMaintenance.value = ''
 	}
+}
+
+async function refreshThumbnails(onlyMissing: boolean) {
+	refreshingThumbnails.value = true
+	thumbnailProgress.value = { processed: 0, failed: 0 }
+	let afterId = 0
+	try {
+		let hasMore = false
+		do {
+			const response = await axios.post<{ data: ThumbnailRefreshResult }>(generateUrl('/apps/shortlinks/settings/admin/thumbnails/refresh'), {
+				afterId,
+				limit: 5,
+				onlyMissing,
+			})
+			const result = response.data.data
+			Object.assign(thumbnailStatus, result.stats)
+			thumbnailProgress.value.processed += result.processed
+			thumbnailProgress.value.failed += result.failed
+			afterId = result.nextAfterId
+			hasMore = result.hasMore
+		} while (hasMore)
+		showSuccess(t('shortlinks', 'Thumbnail refresh completed'))
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	} finally {
+		refreshingThumbnails.value = false
+	}
+}
+
+function formatLastRefresh(timestamp: number | null): string {
+	if (timestamp === null) return t('shortlinks', 'Never')
+	return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp * 1000))
 }
 </script>
 
@@ -374,6 +425,36 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 				<p class="settings-hint">
 					{{ t('shortlinks', 'Server-side title fetching remains limited to public HTTP and HTTPS targets.') }}
 				</p>
+				<div class="thumbnail-overview">
+					<div class="thumbnail-overview__stats" aria-live="polite">
+						<div>
+							<strong>{{ thumbnailStatus.found }}</strong>
+							<span>{{ t('shortlinks', 'of {total} links have a thumbnail', { total: thumbnailStatus.total }) }}</span>
+						</div>
+						<div>
+							<strong>{{ thumbnailStatus.refreshed }}</strong>
+							<span>{{ t('shortlinks', 'links checked') }}</span>
+						</div>
+						<div>
+							<strong>{{ formatLastRefresh(thumbnailStatus.lastRefresh) }}</strong>
+							<span>{{ t('shortlinks', 'Last refresh') }}</span>
+						</div>
+					</div>
+					<p v-if="refreshingThumbnails" class="settings-hint">
+						{{ t('shortlinks', '{count} links checked in this refresh', { count: thumbnailProgress.processed }) }}
+					</p>
+					<p v-else-if="thumbnailProgress.failed" class="settings-hint">
+						{{ t('shortlinks', '{count} pages could not be checked and kept their previous thumbnail.', { count: thumbnailProgress.failed }) }}
+					</p>
+					<div class="thumbnail-overview__actions">
+						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch" @click="refreshThumbnails(true)">
+							{{ t('shortlinks', 'Refresh missing thumbnails') }}
+						</NcButton>
+						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch" @click="refreshThumbnails(false)">
+							{{ t('shortlinks', 'Refresh all thumbnails') }}
+						</NcButton>
+					</div>
+				</div>
 			</div>
 		</NcSettingsSection>
 
@@ -555,6 +636,40 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 	color: var(--color-text-maxcontrast);
 }
 
+.thumbnail-overview {
+	display: grid;
+	padding: calc(var(--default-grid-baseline) * 3);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	background: var(--color-background-hover);
+	gap: calc(var(--default-grid-baseline) * 3);
+}
+
+.thumbnail-overview__stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: calc(var(--default-grid-baseline) * 3);
+}
+
+.thumbnail-overview__stats > div {
+	display: grid;
+	gap: var(--default-grid-baseline);
+}
+
+.thumbnail-overview__stats strong {
+	font-size: 1.15rem;
+}
+
+.thumbnail-overview__stats span {
+	color: var(--color-text-maxcontrast);
+}
+
+.thumbnail-overview__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--default-grid-baseline) * 2);
+}
+
 .system-jobs {
 	display: grid;
 	max-inline-size: 560px;
@@ -594,7 +709,8 @@ async function runMaintenance(action: 'aggregate' | 'cleanup' | 'rebuild') {
 @media (max-width: 700px) {
 	.settings-grid,
 	.settings-grid--three,
-	.settings-add-row {
+	.settings-add-row,
+	.thumbnail-overview__stats {
 		grid-template-columns: 1fr;
 	}
 }

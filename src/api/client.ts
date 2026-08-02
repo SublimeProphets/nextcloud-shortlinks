@@ -61,10 +61,10 @@ export const api = {
 	importLinks: (format: 'csv' | 'json', content: string, dryRun: boolean, conflict: string) => request<Record<string, unknown>>('POST', '/import/links', { format, content, dryRun, conflict }),
 	bookmarklet: () => request<{ code: string; mobileAlternative: string }>('GET', '/tools/bookmarklet'),
 	fetchTitle: (targetUrl: string) => request<{ title: string }>('POST', '/tools/title', { targetUrl }),
-	fetchMetadata: (targetUrl: string) => request<{ title: string; hasThumbnail: boolean }>('POST', '/tools/metadata', { targetUrl }),
+	fetchMetadata: (targetUrl: string) => request<{ title: string; hasThumbnail: boolean; imageUrl: string | null }>('POST', '/tools/metadata', { targetUrl }),
 	searchPrincipals: (search: string) => request<Principal[]>('GET', '/principals', undefined, { search, limit: 20 }),
 	qrUrl: (id: number, format: 'svg' | 'png' = 'svg') => generateUrl('/apps/shortlinks/qr/{id}', { id }) + `?format=${format}`,
 	bulkQrUrl: (ids: number[]) => generateUrl('/apps/shortlinks/qr/bulk') + `?${new URLSearchParams(ids.map(id => ['ids[]', String(id)])).toString()}`,
 	thumbnailUrl: (id: number) => generateUrl('/apps/shortlinks/thumbnail/{id}', { id }),
-	previewThumbnailUrl: (targetUrl: string) => generateUrl('/apps/shortlinks/thumbnail/preview') + `?${new URLSearchParams({ url: targetUrl }).toString()}`,
+	previewThumbnailUrl: (targetUrl: string, imageUrl?: string | null) => generateUrl('/apps/shortlinks/thumbnail/preview') + `?${new URLSearchParams({ url: targetUrl, ...(imageUrl ? { imageUrl } : {}) }).toString()}`,
 }

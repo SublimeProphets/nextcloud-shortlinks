@@ -37,6 +37,7 @@ final class LinkService {
 		private readonly TargetUrlValidatorInterface $urlValidator,
 		private readonly AliasSuggestionService $aliasSuggestions,
 		private readonly LinkUrlService $linkUrls,
+		private readonly ThumbnailService $thumbnails,
 		private readonly SettingsService $settings,
 		private readonly StatsMapper $stats,
 		private readonly LinkRankingService $ranking,
@@ -95,10 +96,17 @@ final class LinkService {
 		$this->events->dispatchTyped($event);
 		$data = $event->data;
 		$targetUrl = $this->urlValidator->validate((string)($data['targetUrl'] ?? ''));
+		$thumbnailProvided = array_key_exists('thumbnailUrl', $data);
+		$thumbnailUrl = $thumbnailProvided ? $this->validatedThumbnailUrl($data['thumbnailUrl']) : null;
 		$targetHash = hash('sha256', $targetUrl);
 		if (!$allowDuplicateTarget && !$this->settings->bool('allow_duplicate_targets')) {
 			$existing = $this->links->findOwnerTarget($ownerUid, $targetHash);
 			if ($existing !== null) {
+				if ($thumbnailProvided) {
+					$this->thumbnails->storeDiscovered($existing, $thumbnailUrl);
+				} elseif ($existing->getThumbnailRefreshedAt() === null && $this->settings->bool('title_fetch')) {
+					$this->thumbnails->refresh($existing);
+				}
 				return $this->serialize($existing);
 			}
 		}
@@ -129,6 +137,11 @@ final class LinkService {
 				$this->audit->record('created', $ownerUid, $link);
 				$this->db->commit();
 				$this->events->dispatchTyped(new LinkCreatedEvent($link));
+				if ($thumbnailProvided) {
+					$this->thumbnails->storeDiscovered($link, $thumbnailUrl);
+				} elseif ($this->settings->bool('title_fetch')) {
+					$this->thumbnails->refresh($link);
+				}
 				return $this->serialize($link);
 			} catch (Exception $e) {
 				$this->db->rollBack();
@@ -167,6 +180,8 @@ final class LinkService {
 		$event = new BeforeLinkUpdatedEvent($link, $data);
 		$this->events->dispatchTyped($event);
 		$data = $event->data;
+		$thumbnailProvided = array_key_exists('thumbnailUrl', $data);
+		$thumbnailUrl = $thumbnailProvided ? $this->validatedThumbnailUrl($data['thumbnailUrl']) : null;
 		$before = ['slug' => $link->getSlug(), 'target' => $link->getTargetHash(), 'active' => $link->getIsActive(), 'folderId' => $link->getFolderId()];
 		$expectedVersion = (int)($data['version'] ?? 0);
 		if ($expectedVersion !== $link->getEntityVersion()) {
@@ -232,6 +247,11 @@ final class LinkService {
 			throw $e;
 		}
 		$updated = $this->find($id);
+		if ($thumbnailProvided) {
+			$this->thumbnails->storeDiscovered($updated, $thumbnailUrl);
+		} elseif ($before['target'] !== $updated->getTargetHash() && $this->settings->bool('title_fetch')) {
+			$this->thumbnails->refresh($updated);
+		}
 		$this->events->dispatchTyped(new LinkUpdatedEvent($updated));
 		return $this->serialize($updated);
 	}
@@ -472,5 +492,14 @@ final class LinkService {
 			$result['folderId'] = null;
 		}
 		return $result;
+	}
+
+	private function validatedThumbnailUrl(mixed $value): ?string {
+		if ($value === null || trim((string)$value) === '') {
+			return null;
+		}
+		$url = trim((string)$value);
+		$this->urlValidator->assertSafeForServerRequest($url);
+		return $url;
 	}
 }

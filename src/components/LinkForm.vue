@@ -165,6 +165,7 @@ function submit() {
 		slug: draft.slug.trim(),
 		tagIds: [...draft.tagIds],
 		clickLimit: limitClicks.value ? Number(draft.clickLimit) : null,
+		thumbnailUrl: metadata.loaded.value ? metadata.imageUrl.value : undefined,
 	}
 	if (props.link && !payload.password) delete payload.password
 	emit('save', payload)

@@ -4,6 +4,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-02
+
+### Changed
+
+- Persist discovered Open Graph, Twitter Card and HTML share-thumbnail URLs with a refresh timestamp instead of rediscovering them for every card render.
+- Serve persisted thumbnails through the existing SSRF-safe, authenticated image proxy and retain the previous image during temporary upstream failures.
+- Added bounded admin actions for refreshing missing or all existing thumbnails, including coverage, checked-link and last-refresh statistics.
+
 ## [1.2.2] - 2026-07-30
 
 ### Changed

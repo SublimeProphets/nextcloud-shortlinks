@@ -10,7 +10,7 @@ use OCP\Http\Client\IClientService;
 
 final class TitleFetcher {
 	private const MAX_REDIRECTS = 3;
-	private const MAX_BYTES = 65536;
+	private const MAX_BYTES = 262144;
 	private const MAX_IMAGE_BYTES = 2097152;
 
 	public function __construct(
@@ -43,8 +43,15 @@ final class TitleFetcher {
 		$image = $this->firstContent($xpath, [
 			'//meta[translate(@property,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="og:image:secure_url"]/@content',
 			'//meta[translate(@property,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="og:image"]/@content',
+			'//meta[translate(@property,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="og:image:url"]/@content',
 			'//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="twitter:image"]/@content',
+			'//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="twitter:image:src"]/@content',
+			'//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="thumbnail"]/@content',
+			'//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="thumbnailurl"]/@content',
+			'//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="image"]/@content',
+			'//meta[translate(@itemprop,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="image"]/@content',
 			'//link[contains(concat(" ", normalize-space(translate(@rel,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")), " "), " image_src ")]/@href',
+			'//link[contains(concat(" ", normalize-space(translate(@rel,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")), " "), " apple-touch-icon ")]/@href',
 		]);
 		$imageUrl = $image === '' ? null : $this->resolveLocation($document['url'], html_entity_decode($image, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 		if ($imageUrl !== null) {
@@ -61,6 +68,11 @@ final class TitleFetcher {
 		if ($imageUrl === null) {
 			throw new ValidationException('No share thumbnail is available', ['targetUrl' => 'no_thumbnail']);
 		}
+		return $this->fetchImageUrl($imageUrl);
+	}
+
+	/** Download a previously discovered share image through the SSRF-safe proxy. @return array{data:string,mimeType:string} */
+	public function fetchImageUrl(string $imageUrl): array {
 		$client = $this->clients->newClient();
 		for ($redirects = 0; $redirects <= self::MAX_REDIRECTS; ++$redirects) {
 			$this->validator->assertSafeForServerRequest($imageUrl);
@@ -70,7 +82,11 @@ final class TitleFetcher {
 				'stream' => true,
 				'timeout' => 5,
 				'connect_timeout' => 3,
-				'headers' => ['Accept' => 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9', 'Range' => 'bytes=0-' . (self::MAX_IMAGE_BYTES - 1)],
+				'headers' => [
+					'Accept' => 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',
+					'Range' => 'bytes=0-' . (self::MAX_IMAGE_BYTES - 1),
+					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.3; +https://nextcloud.com)',
+				],
 			]);
 			$status = $response->getStatusCode();
 			if (in_array($status, [301, 302, 303, 307, 308], true)) {
@@ -112,7 +128,11 @@ final class TitleFetcher {
 				'stream' => true,
 				'timeout' => 5,
 				'connect_timeout' => 3,
-				'headers' => ['Accept' => 'text/html,application/xhtml+xml;q=0.9', 'Range' => 'bytes=0-' . (self::MAX_BYTES - 1)],
+				'headers' => [
+					'Accept' => 'text/html,application/xhtml+xml;q=0.9',
+					'Range' => 'bytes=0-' . (self::MAX_BYTES - 1),
+					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.3; +https://nextcloud.com)',
+				],
 			]);
 			$status = $response->getStatusCode();
 			if (in_array($status, [301, 302, 303, 307, 308], true)) {
@@ -134,10 +154,8 @@ final class TitleFetcher {
 				throw new ValidationException('Title fetch only accepts HTML', ['targetUrl' => 'not_html']);
 			}
 			$body = $response->getBody();
-			$html = is_resource($body) ? (string)stream_get_contents($body, self::MAX_BYTES + 1) : substr((string)$body, 0, self::MAX_BYTES + 1);
-			if (strlen($html) > self::MAX_BYTES) {
-				throw new ValidationException('Title fetch response is too large', ['targetUrl' => 'too_large']);
-			}
+			// Many servers ignore Range for HTML. Parse a bounded prefix instead of rejecting the whole page.
+			$html = is_resource($body) ? (string)stream_get_contents($body, self::MAX_BYTES) : substr((string)$body, 0, self::MAX_BYTES);
 			return ['url' => $url, 'html' => $html];
 		}
 		throw new ValidationException('Title fetch failed', ['targetUrl' => 'fetch_failed']);

@@ -108,7 +108,7 @@ final class ToolsApiController extends AbstractApiOCSController {
 		return $this->respond(function (): array {
 			$payload = $this->payload(['targetUrl']);
 			$metadata = $this->titles->fetchMetadata((string)($payload['targetUrl'] ?? ''));
-			return ['title' => $metadata['title'], 'hasThumbnail' => $metadata['imageUrl'] !== null];
+			return ['title' => $metadata['title'], 'hasThumbnail' => $metadata['imageUrl'] !== null, 'imageUrl' => $metadata['imageUrl']];
 		});
 	}
 }

@@ -59,14 +59,20 @@ final class AppContractTest extends TestCase {
 		self::assertContains('GET /qr/bulk', $publicRouteKeys);
 		self::assertContains('GET /thumbnail/preview', $publicRouteKeys);
 		self::assertContains('GET /thumbnail/{id}', $publicRouteKeys);
+		self::assertContains('POST /settings/admin/thumbnails/refresh', $publicRouteKeys);
 		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1101Date20260729220000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1300Date20260802120000.php');
 		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertNotFalse($migration);
 		self::assertStringContainsString("hasColumn('icon')", $migration);
 		$counterMigration = file_get_contents($this->root . '/lib/Migration/Version1101Date20260729220000.php');
 		self::assertNotFalse($counterMigration);
 		self::assertStringContainsString("createNamedParameter('sequential')", $counterMigration);
+		$thumbnailMigration = file_get_contents($this->root . '/lib/Migration/Version1300Date20260802120000.php');
+		self::assertNotFalse($thumbnailMigration);
+		self::assertStringContainsString("hasColumn('thumbnail_url')", $thumbnailMigration);
+		self::assertStringContainsString("hasColumn('thumbnail_refreshed_at')", $thumbnailMigration);
 	}
 
 	public function testReleaseIgnoreRulesExcludeDevelopmentTrees(): void {

@@ -6,6 +6,7 @@ export interface Folder { id: number; parentId: number | null; name: string; ico
 export interface ShortLink {
 	id: number; ownerUid: string; folderId: number | null; slug: string; shortUrl: string; targetUrl: string
 	title: string; description: string | null; favorite: boolean; active: boolean; accessMode: AccessMode
+	thumbnailUrl?: string | null; thumbnailRefreshedAt?: number | null
 	passwordProtected: boolean; redirectStatus: number; startsAt: number | null; expiresAt: number | null
 	clickLimit: number | null; clickCount: number; lastClickedAt: number | null; createdAt: number; updatedAt: number
 	deletedAt: number | null; version: number; tags: Tag[]; canEdit: boolean; canShare: boolean
@@ -38,6 +39,7 @@ export interface LinkDraft {
 	targetUrl: string; slug: string; title: string; description: string; folderId: number | null; tagIds: number[]
 	favorite: boolean; active: boolean; accessMode: AccessMode; password: string; redirectStatus: number
 	startsAt: number | null; expiresAt: number | null; clickLimit: number | null
+	thumbnailUrl?: string | null
 }
 
 export interface UserSettings {

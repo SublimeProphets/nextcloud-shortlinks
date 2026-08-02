@@ -168,6 +168,7 @@ async function submit() {
 			slug: draft.slug.trim(),
 			tagIds: [...draft.tagIds],
 			clickLimit: limitClicks.value ? Number(draft.clickLimit) : null,
+			thumbnailUrl: metadata.loaded.value ? metadata.imageUrl.value : undefined,
 		})
 		showSuccess(t('shortlinks', 'Short link created'))
 		resetDraft()

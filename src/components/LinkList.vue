@@ -195,7 +195,7 @@ async function exportSelection(format: 'csv' | 'json') {
 						</td>
 						<td>
 							<button class="table-link-identity" @click="emit('open', link)">
-								<LinkThumbnail size="small" :src="api.thumbnailUrl(link.id)" alt="" /><span><strong>{{ link.title || link.slug }}</strong><small>{{ `.../${link.slug}` }}</small></span><NcIconSvgWrapper v-if="link.favorite"
+								<LinkThumbnail size="small" :src="link.thumbnailUrl ? api.thumbnailUrl(link.id) : ''" alt="" /><span><strong>{{ link.title || link.slug }}</strong><small>{{ `.../${link.slug}` }}</small></span><NcIconSvgWrapper v-if="link.favorite"
 									:path="mdiStar"
 									:size="17"
 									aria-hidden="true" />

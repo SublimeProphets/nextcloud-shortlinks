@@ -28,7 +28,7 @@ describe('LinkForm', () => {
 	})
 
 	it('automatically previews metadata when the administrator enabled the feature', async () => {
-		apiMock.fetchMetadata.mockResolvedValueOnce({ title: 'Fetched title', hasThumbnail: false })
+		apiMock.fetchMetadata.mockResolvedValueOnce({ title: 'Fetched title', hasThumbnail: false, imageUrl: null })
 		const view = render(LinkForm, { props: { folders: [], tags: [], prefillUrl: 'https://example.com', prefillAlias: 'example', allowTitleFetch: true }, global })
 		expect(await view.findByDisplayValue('Fetched title', {}, { timeout: 1500 })).toBeTruthy()
 		expect(apiMock.fetchMetadata).toHaveBeenCalledWith('https://example.com')

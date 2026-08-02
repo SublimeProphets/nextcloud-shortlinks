@@ -46,6 +46,53 @@ final class ShortLinkMapper extends QBMapper {
 		return (int)$qb->executeQuery()->fetchOne();
 	}
 
+	/** @return array{total:int,found:int,refreshed:int,lastRefresh:?int} */
+	public function thumbnailStats(): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select(
+			$qb->func()->count('id', 'total'),
+			$qb->func()->count('thumbnail_url', 'found'),
+			$qb->func()->count('thumbnail_refreshed_at', 'refreshed'),
+		)->from($this->tableName)->where($qb->expr()->isNull('deleted_at'));
+		/** @var array{total:mixed,found:mixed,refreshed:mixed}|false $row */
+		$row = $qb->executeQuery()->fetchAssociative();
+		$lastRefreshQuery = $this->db->getQueryBuilder();
+		$lastRefreshQuery->selectAlias($lastRefreshQuery->func()->max('thumbnail_refreshed_at'), 'last_refresh')
+			->from($this->tableName)
+			->where($lastRefreshQuery->expr()->isNull('deleted_at'));
+		$lastRefresh = $lastRefreshQuery->executeQuery()->fetchOne();
+		return [
+			'total' => (int)($row['total'] ?? 0),
+			'found' => (int)($row['found'] ?? 0),
+			'refreshed' => (int)($row['refreshed'] ?? 0),
+			'lastRefresh' => $lastRefresh === false || $lastRefresh === null ? null : (int)$lastRefresh,
+		];
+	}
+
+	/** @return list<ShortLink> */
+	public function findThumbnailBatch(int $afterId, int $limit, bool $onlyMissing): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->tableName)
+			->where($qb->expr()->isNull('deleted_at'))
+			->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'ASC')
+			->setMaxResults($limit);
+		if ($onlyMissing) {
+			$qb->andWhere($qb->expr()->isNull('thumbnail_url'));
+		}
+		/** @var list<ShortLink> */
+		return $this->findEntities($qb);
+	}
+
+	public function updateThumbnail(int $id, ?string $thumbnailUrl, int $refreshedAt): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->tableName)
+			->set('thumbnail_url', $qb->createNamedParameter($thumbnailUrl, $thumbnailUrl === null ? IQueryBuilder::PARAM_NULL : IQueryBuilder::PARAM_STR))
+			->set('thumbnail_refreshed_at', $qb->createNamedParameter($refreshedAt, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->executeStatement();
+	}
+
 	/** @return list<ShortLink> */
 	public function findOwnedByFolder(int $folderId, string $ownerUid): array {
 		$qb = $this->db->getQueryBuilder();
@@ -107,6 +154,7 @@ final class ShortLinkMapper extends QBMapper {
 			'folder_id' => [$link->getFolderId(), IQueryBuilder::PARAM_INT], 'slug' => [$link->getSlug(), IQueryBuilder::PARAM_STR],
 			'slug_hash' => [$link->getSlugHash(), IQueryBuilder::PARAM_STR], 'target_url' => [$link->getTargetUrl(), IQueryBuilder::PARAM_STR],
 			'target_hash' => [$link->getTargetHash(), IQueryBuilder::PARAM_STR], 'title' => [$link->getTitle(), IQueryBuilder::PARAM_STR],
+			'thumbnail_url' => [$link->getThumbnailUrl(), IQueryBuilder::PARAM_STR], 'thumbnail_refreshed_at' => [$link->getThumbnailRefreshedAt(), IQueryBuilder::PARAM_INT],
 			'description' => [$link->getDescription(), IQueryBuilder::PARAM_STR], 'is_favorite' => [$link->getIsFavorite(), IQueryBuilder::PARAM_BOOL],
 			'is_active' => [$link->getIsActive(), IQueryBuilder::PARAM_BOOL], 'access_mode' => [$link->getAccessMode(), IQueryBuilder::PARAM_STR],
 			'password_hash' => [$link->getPasswordHash(), IQueryBuilder::PARAM_STR], 'redirect_status' => [$link->getRedirectStatus(), IQueryBuilder::PARAM_INT],

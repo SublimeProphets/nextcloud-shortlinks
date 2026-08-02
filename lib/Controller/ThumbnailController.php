@@ -29,29 +29,48 @@ final class ThumbnailController extends Controller {
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function show(int $id): DataDisplayResponse {
 		$link = $this->links->get($id);
-		return $this->image((string)$link['targetUrl']);
+		$imageUrl = isset($link['thumbnailUrl']) ? (string)$link['thumbnailUrl'] : '';
+		return $this->imageUrl($imageUrl);
 	}
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
-	public function preview(string $url): DataDisplayResponse {
-		return $this->image($url);
+	public function preview(string $url, string $imageUrl = ''): DataDisplayResponse {
+		if ($imageUrl !== '') {
+			return $this->imageUrl($imageUrl);
+		}
+		try {
+			return $this->response($this->titles->fetchImage($url));
+		} catch (\Throwable) {
+			return $this->notFound();
+		}
 	}
 
-	private function image(string $url): DataDisplayResponse {
+	private function imageUrl(string $imageUrl): DataDisplayResponse {
 		try {
-			$image = $this->titles->fetchImage($url);
-			return new DataDisplayResponse($image['data'], Http::STATUS_OK, [
-				'Content-Type' => $image['mimeType'],
-				'X-Content-Type-Options' => 'nosniff',
-				'Cache-Control' => 'private, max-age=900',
-			]);
+			if ($imageUrl === '') {
+				return $this->notFound();
+			}
+			return $this->response($this->titles->fetchImageUrl($imageUrl));
 		} catch (\Throwable) {
-			return new DataDisplayResponse('', Http::STATUS_NOT_FOUND, [
-				'X-Content-Type-Options' => 'nosniff',
-				'Cache-Control' => 'private, max-age=60',
-			]);
+			return $this->notFound();
 		}
+	}
+
+	/** @param array{data:string,mimeType:string} $image */
+	private function response(array $image): DataDisplayResponse {
+		return new DataDisplayResponse($image['data'], Http::STATUS_OK, [
+			'Content-Type' => $image['mimeType'],
+			'X-Content-Type-Options' => 'nosniff',
+			'Cache-Control' => 'private, max-age=3600',
+		]);
+	}
+
+	private function notFound(): DataDisplayResponse {
+		return new DataDisplayResponse('', Http::STATUS_NOT_FOUND, [
+			'X-Content-Type-Options' => 'nosniff',
+			'Cache-Control' => 'private, max-age=60',
+		]);
 	}
 }

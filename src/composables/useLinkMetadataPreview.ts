@@ -4,6 +4,8 @@ import { api } from '../api/client'
 export function useLinkMetadataPreview(url: Ref<string>, title: Ref<string>, valid: Ref<boolean>, enabled: Ref<boolean>) {
 	const loading = ref(false)
 	const hasThumbnail = ref(false)
+	const imageUrl = ref<string | null>(null)
+	const loaded = ref(false)
 	const titleEdited = ref(Boolean(title.value))
 	let timer: ReturnType<typeof setTimeout> | undefined
 	let requestId = 0
@@ -11,6 +13,8 @@ export function useLinkMetadataPreview(url: Ref<string>, title: Ref<string>, val
 	watch([url, valid, enabled], () => {
 		if (timer) clearTimeout(timer)
 		hasThumbnail.value = false
+		imageUrl.value = null
+		loaded.value = false
 		if (!valid.value || !enabled.value) {
 			loading.value = false
 			return
@@ -30,9 +34,14 @@ export function useLinkMetadataPreview(url: Ref<string>, title: Ref<string>, val
 			const metadata = await api.fetchMetadata(targetUrl)
 			if (activeRequest !== requestId || targetUrl !== url.value) return
 			hasThumbnail.value = metadata.hasThumbnail
+			imageUrl.value = metadata.imageUrl
+			loaded.value = true
 			if (!titleEdited.value && metadata.title) title.value = metadata.title
 		} catch {
-			if (activeRequest === requestId) hasThumbnail.value = false
+			if (activeRequest === requestId) {
+				hasThumbnail.value = false
+				imageUrl.value = null
+			}
 		} finally {
 			if (activeRequest === requestId) loading.value = false
 		}
@@ -40,9 +49,11 @@ export function useLinkMetadataPreview(url: Ref<string>, title: Ref<string>, val
 
 	return {
 		hasThumbnail,
+		imageUrl,
+		loaded,
 		loading,
 		markTitleEdited: () => { titleEdited.value = true },
 		resetTitleEditing: () => { titleEdited.value = false },
-		thumbnailSrc: computed(() => hasThumbnail.value && valid.value ? api.previewThumbnailUrl(url.value) : ''),
+		thumbnailSrc: computed(() => hasThumbnail.value && valid.value ? api.previewThumbnailUrl(url.value, imageUrl.value) : ''),
 	}
 }

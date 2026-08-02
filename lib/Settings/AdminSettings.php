@@ -9,6 +9,7 @@ use OCA\Shortlinks\BackgroundJob\CleanupJob;
 use OCA\Shortlinks\BackgroundJob\RotateVisitorSecretJob;
 use OCA\Shortlinks\Provider\Geo\GeoResolverInterface;
 use OCA\Shortlinks\Service\SettingsService;
+use OCA\Shortlinks\Service\ThumbnailService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\BackgroundJob\IJobList;
@@ -21,11 +22,13 @@ final class AdminSettings implements ISettings {
 		private readonly SettingsService $settings,
 		private readonly GeoResolverInterface $geo,
 		private readonly IJobList $jobs,
+		private readonly ThumbnailService $thumbnails,
 	) {
 	}
 	public function getForm(): TemplateResponse {
 		$this->initialState->provideInitialState('admin-settings', $this->settings->publicSettings());
 		$this->initialState->provideInitialState('geo-status', $this->geo->status());
+		$this->initialState->provideInitialState('thumbnail-status', $this->thumbnails->stats());
 		$jobCounts = [];
 		foreach ($this->jobs->countByClass() as $entry) {
 			$jobCounts[$entry['class']] = $entry['count'];

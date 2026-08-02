@@ -513,7 +513,16 @@ OC.L10N.register(
     "End date": "Enddatum",
     "Apply": "Anwenden",
     "links total": "Links insgesamt",
-    "{count} inactive": "davon {count} inaktiv"
+    "{count} inactive": "davon {count} inaktiv",
+    "of {total} links have a thumbnail": "von {total} Links haben ein Vorschaubild",
+    "links checked": "Links geprüft",
+    "Last refresh": "Letzte Aktualisierung",
+    "Never": "Noch nie",
+    "{count} links checked in this refresh": "{count} Links bei dieser Aktualisierung geprüft",
+    "{count} pages could not be checked and kept their previous thumbnail.": "{count} Seiten konnten nicht geprüft werden und behielten ihr bisheriges Vorschaubild.",
+    "Refresh missing thumbnails": "Fehlende Vorschaubilder aktualisieren",
+    "Refresh all thumbnails": "Alle Vorschaubilder aktualisieren",
+    "Thumbnail refresh completed": "Vorschaubilder wurden aktualisiert"
 	},
 	"nplurals=2; plural=(n != 1);"
 );

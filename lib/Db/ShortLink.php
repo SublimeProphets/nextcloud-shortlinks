@@ -22,6 +22,10 @@ use OCP\DB\Types;
  * @method void setTargetHash(string $value)
  * @method string getTitle()
  * @method void setTitle(string $value)
+ * @method ?string getThumbnailUrl()
+ * @method void setThumbnailUrl(?string $value)
+ * @method ?int getThumbnailRefreshedAt()
+ * @method void setThumbnailRefreshedAt(?int $value)
  * @method ?string getDescription()
  * @method void setDescription(?string $value)
  * @method bool getIsFavorite()
@@ -61,6 +65,8 @@ final class ShortLink extends Entity {
 	protected string $targetUrl = '';
 	protected string $targetHash = '';
 	protected string $title = '';
+	protected ?string $thumbnailUrl = null;
+	protected ?int $thumbnailRefreshedAt = null;
 	protected ?string $description = null;
 	protected bool $isFavorite = false;
 	protected bool $isActive = true;
@@ -82,7 +88,7 @@ final class ShortLink extends Entity {
 		$this->addType('isFavorite', Types::BOOLEAN);
 		$this->addType('isActive', Types::BOOLEAN);
 		$this->addType('redirectStatus', Types::INTEGER);
-		foreach (['startsAt', 'expiresAt', 'clickLimit', 'clickCount', 'lastClickedAt', 'createdAt', 'updatedAt', 'deletedAt'] as $field) {
+		foreach (['thumbnailRefreshedAt', 'startsAt', 'expiresAt', 'clickLimit', 'clickCount', 'lastClickedAt', 'createdAt', 'updatedAt', 'deletedAt'] as $field) {
 			$this->addType($field, Types::BIGINT);
 		}
 		$this->addType('entityVersion', Types::INTEGER);
@@ -93,7 +99,8 @@ final class ShortLink extends Entity {
 		return [
 			'id' => $this->getId(), 'ownerUid' => $this->getOwnerUid(), 'folderId' => $this->getFolderId(),
 			'slug' => $this->getSlug(), 'shortUrl' => $shortUrl, 'targetUrl' => $this->getTargetUrl(),
-			'title' => $this->getTitle(), 'description' => $this->getDescription(), 'favorite' => $this->getIsFavorite(),
+			'title' => $this->getTitle(), 'thumbnailUrl' => $this->getThumbnailUrl(), 'thumbnailRefreshedAt' => $this->getThumbnailRefreshedAt(),
+			'description' => $this->getDescription(), 'favorite' => $this->getIsFavorite(),
 			'active' => $this->getIsActive(), 'accessMode' => $this->getAccessMode(), 'passwordProtected' => $this->getPasswordHash() !== null,
 			'redirectStatus' => $this->getRedirectStatus(), 'startsAt' => $this->getStartsAt(), 'expiresAt' => $this->getExpiresAt(),
 			'clickLimit' => $this->getClickLimit(), 'clickCount' => $this->getClickCount(), 'lastClickedAt' => $this->getLastClickedAt(),

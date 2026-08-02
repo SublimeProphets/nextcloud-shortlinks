@@ -9,6 +9,7 @@ use OCA\Shortlinks\Exception\ShortlinksException;
 use OCA\Shortlinks\Service\AuditService;
 use OCA\Shortlinks\Service\SettingsService;
 use OCA\Shortlinks\Service\StatsService;
+use OCA\Shortlinks\Service\ThumbnailService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -24,10 +25,33 @@ final class AdminSettingsController extends Controller {
 		private readonly AuditService $audit,
 		private readonly IUserSession $userSession,
 		private readonly StatsService $stats,
+		private readonly ThumbnailService $thumbnails,
 		private readonly AuditLogMapper $auditLogs,
 		private readonly ITimeFactory $time,
 	) {
 		parent::__construct($appName, $request);
+	}
+
+	public function refreshThumbnails(int $afterId = 0, int $limit = 5, bool $onlyMissing = false): DataResponse {
+		try {
+			if (!$this->settings->bool('title_fetch')) {
+				throw new \InvalidArgumentException('Server-side metadata fetching must be enabled first');
+			}
+			$result = $this->thumbnails->refreshBatch($afterId, $limit, $onlyMissing);
+			$actorUid = $this->userSession->getUser()?->getUID();
+			if ($actorUid !== null && !$result['hasMore']) {
+				$this->audit->record('admin_thumbnails_refreshed', $actorUid, null, [
+					'onlyMissing' => $onlyMissing,
+					'found' => $result['stats']['found'],
+					'total' => $result['stats']['total'],
+				]);
+			}
+			return new DataResponse(['data' => $result, 'error' => null]);
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['data' => null, 'error' => ['code' => 'validation_error', 'message' => $e->getMessage()]], Http::STATUS_BAD_REQUEST);
+		} catch (\Throwable) {
+			return new DataResponse(['data' => null, 'error' => ['code' => 'internal_error', 'message' => 'Thumbnails could not be refreshed']], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
 	}
 	public function save(): DataResponse {
 		try {

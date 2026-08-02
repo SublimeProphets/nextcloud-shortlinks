@@ -11,6 +11,7 @@ vi.mock('@nextcloud/initial-state', () => ({
 	loadState: (_app: string, key: string) => {
 		if (key === 'geo-status') return { readable: false, configured: false }
 		if (key === 'system-status') return { phpVersion: '8.3.0', phpSupported: true, jobs: { 'Statistics aggregation': 1, 'Retention cleanup': 1, 'Visitor secret rotation': 1 } }
+		if (key === 'thumbnail-status') return { total: 4, found: 2, refreshed: 3, lastRefresh: 1_700_000_000 }
 		return {
 			enabled: true,
 			public_creation: false,
@@ -98,5 +99,28 @@ describe('AdminApp', () => {
 			allowed_schemes: ['http', 'https', 'mailto'],
 			redirect_statuses: [301, 302, 303, 307, 308],
 		}))
+	})
+
+	it('refreshes existing thumbnails in bounded batches', async () => {
+		axiosMock.post.mockResolvedValueOnce({
+			data: {
+				data: {
+					processed: 2,
+					found: 1,
+					failed: 1,
+					nextAfterId: 4,
+					hasMore: false,
+					stats: { total: 4, found: 3, refreshed: 4, lastRefresh: 1_700_000_100 },
+				},
+			},
+		})
+		const view = render(AdminApp, { global })
+		await fireEvent.click(view.getByRole('button', { name: 'Refresh all thumbnails' }))
+		expect(axiosMock.post).toHaveBeenCalledWith('/apps/shortlinks/settings/admin/thumbnails/refresh', {
+			afterId: 0,
+			limit: 5,
+			onlyMissing: false,
+		})
+		expect(view.getByText('3')).toBeTruthy()
 	})
 })

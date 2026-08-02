@@ -57,7 +57,7 @@ final class LinksApiController extends AbstractApiOCSController {
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function create(): DataResponse {
-		return $this->respond(fn () => $this->links->create($this->payload(['targetUrl', 'slug', 'title', 'description', 'folderId', 'tagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'password'])), Http::STATUS_CREATED);
+		return $this->respond(fn () => $this->links->create($this->payload(['targetUrl', 'slug', 'title', 'thumbnailUrl', 'description', 'folderId', 'tagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'password'])), Http::STATUS_CREATED);
 	}
 
 	/**
@@ -83,7 +83,7 @@ final class LinksApiController extends AbstractApiOCSController {
 	 */
 	#[NoAdminRequired]
 	public function update(int $id): DataResponse {
-		return $this->respond(fn () => $this->links->update($id, $this->payload(['targetUrl', 'slug', 'title', 'description', 'folderId', 'tagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'password', 'version'])));
+		return $this->respond(fn () => $this->links->update($id, $this->payload(['targetUrl', 'slug', 'title', 'thumbnailUrl', 'description', 'folderId', 'tagIds', 'favorite', 'active', 'startsAt', 'expiresAt', 'clickLimit', 'redirectStatus', 'accessMode', 'password', 'version'])));
 	}
 
 	/**
