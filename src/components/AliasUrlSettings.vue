@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -9,9 +9,12 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import type { UserSettings } from '../types'
 
+const props = withDefaults(defineProps<{ section?: 'alias' | 'url' }>(), { section: 'alias' })
 const emit = defineEmits<{ saved: [settings: UserSettings] }>()
 const loading = ref(true)
 const saving = ref(false)
+const aliasSaved = ref(false)
+let saveTimer: ReturnType<typeof setTimeout> | undefined
 const settings = reactive<UserSettings>({
 	aliasStrategy: 'inherit',
 	collisionStrategy: 'random',
@@ -35,9 +38,9 @@ const aliasExample = computed(() => {
 	if (settings.aliasStrategy === 'random') return 'aB3x9Qz'
 	return settings.previewAlias
 })
-const canonicalExample = `${window.location.origin}/apps/shortlinks/r/${aliasExample.value}`
+const canonicalExample = computed(() => `${window.location.origin}/apps/shortlinks/r/${aliasExample.value}`)
 const urlPreview = computed(() => {
-	const canonical = `${window.location.origin}/apps/shortlinks/r/${aliasExample.value}`
+	const canonical = canonicalExample.value
 	try {
 		if (settings.urlMode === 'inherit') return settings.shortUrlTemplate.replace('{alias}', aliasExample.value) || settings.previewUrl
 		if (settings.urlMode === 'simple') return settings.baseUrl.trim() ? `${settings.baseUrl.trim().replace(/\/$/, '')}/${aliasExample.value}` : canonical
@@ -50,9 +53,7 @@ const urlPreview = computed(() => {
 })
 
 watch(() => settings.urlMode, mode => {
-	if (mode === 'template' && !settings.urlTemplate) {
-		settings.urlTemplate = `${settings.baseUrl.trim().replace(/\/$/, '') || `${window.location.origin}/apps/shortlinks/r`}/{alias}`
-	}
+	if (mode === 'template' && !settings.urlTemplate) settings.urlTemplate = `${settings.baseUrl.trim().replace(/\/$/, '') || `${window.location.origin}/apps/shortlinks/r`}/{alias}`
 	if (mode === 'regex' && !settings.urlPattern) {
 		const prefix = `${window.location.origin}/apps/shortlinks/r/`
 		settings.urlPattern = `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(.+)$`
@@ -60,20 +61,23 @@ watch(() => settings.urlMode, mode => {
 	}
 })
 
+watch(() => [settings.aliasStrategy, settings.collisionStrategy, settings.suffixLength], () => {
+	if (loading.value || props.section !== 'alias') return
+	aliasSaved.value = false
+	if (saveTimer) clearTimeout(saveTimer)
+	saveTimer = setTimeout(() => save(true), 500)
+})
+
 onMounted(load)
+onBeforeUnmount(() => { if (saveTimer) clearTimeout(saveTimer) })
 
 async function load() {
 	loading.value = true
-	try {
-		Object.assign(settings, await api.getUserSettings())
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	} finally {
-		loading.value = false
-	}
+	try { Object.assign(settings, await api.getUserSettings()) } catch (error) { showError(error instanceof Error ? error.message : String(error)) } finally { loading.value = false }
 }
 
-async function save() {
+async function save(silent = false) {
+	if (saving.value) return
 	saving.value = true
 	try {
 		const updated = await api.updateUserSettings({
@@ -88,37 +92,29 @@ async function save() {
 		})
 		Object.assign(settings, updated)
 		emit('saved', updated)
-		showSuccess(t('shortlinks', 'Personal link settings saved'))
+		if (silent) aliasSaved.value = true
+		else showSuccess(t('shortlinks', 'Personal link settings saved'))
 	} catch (error) {
 		showError(error instanceof Error ? error.message : String(error))
-	} finally {
-		saving.value = false
-	}
+	} finally { saving.value = false }
 }
 </script>
 
 <template>
 	<NcLoadingIcon v-if="loading" :name="t('shortlinks', 'Loading personal link settings')" />
-	<form v-else class="alias-url-settings" @submit.prevent="save">
-		<section class="preference-group">
-			<h3>{{ t('shortlinks', 'Automatic aliases') }}</h3>
+	<form v-else class="alias-url-settings" @submit.prevent="save(false)">
+		<section v-if="section === 'alias'" class="preference-group">
 			<p>{{ t('shortlinks', 'Choose how the editable alias field is prefilled when you create a link.') }}</p>
-			<label class="select-field">
-				<span>{{ t('shortlinks', 'Alias strategy') }}</span>
-				<select v-model="settings.aliasStrategy" :disabled="!settings.allowAliasSettings">
-					<option value="inherit">{{ t('shortlinks', 'Use administrator default') }}</option>
-					<option value="readable">{{ t('shortlinks', 'Guess from title or destination') }}</option>
-					<option value="random">{{ t('shortlinks', 'Generate a random alias') }}</option>
-				</select>
-			</label>
+			<label class="select-field"><span>{{ t('shortlinks', 'Alias strategy') }}</span><select v-model="settings.aliasStrategy" :disabled="!settings.allowAliasSettings">
+				<option value="inherit">{{ t('shortlinks', 'Use administrator default') }}</option>
+				<option value="readable">{{ t('shortlinks', 'Guess from title or destination') }}</option>
+				<option value="random">{{ t('shortlinks', 'Generate a random alias') }}</option>
+			</select></label>
 			<div v-if="settings.aliasStrategy === 'readable'" class="preference-grid">
-				<label class="select-field">
-					<span>{{ t('shortlinks', 'If the guessed alias is already used') }}</span>
-					<select v-model="settings.collisionStrategy" :disabled="!settings.allowAliasSettings">
-						<option value="random">{{ t('shortlinks', 'Add the shortest random suffix') }}</option>
-						<option value="numbered">{{ t('shortlinks', 'Try -2, -3, and so on') }}</option>
-					</select>
-				</label>
+				<label class="select-field"><span>{{ t('shortlinks', 'If the guessed alias is already used') }}</span><select v-model="settings.collisionStrategy" :disabled="!settings.allowAliasSettings">
+					<option value="random">{{ t('shortlinks', 'Add the shortest random suffix') }}</option>
+					<option value="numbered">{{ t('shortlinks', 'Try -2, -3, and so on') }}</option>
+				</select></label>
 				<NcTextField v-if="settings.collisionStrategy === 'random'"
 					v-model="settings.suffixLength"
 					type="number"
@@ -131,22 +127,19 @@ async function save() {
 			<div class="example-card">
 				<span>{{ t('shortlinks', 'Example alias') }}</span><strong>{{ aliasExample }}</strong>
 			</div>
+			<p class="autosave-status" aria-live="polite">
+				{{ saving ? t('shortlinks', 'Saving…') : aliasSaved ? t('shortlinks', 'Saved automatically') : t('shortlinks', 'Changes are saved automatically') }}
+			</p>
 		</section>
 
-		<hr>
-
-		<section class="preference-group">
-			<h3>{{ t('shortlinks', 'URL used for sharing') }}</h3>
+		<section v-else class="preference-group">
 			<p>{{ t('shortlinks', 'Keep the global URL, append the alias to your own domain, or define an expert transformation.') }}</p>
-			<label class="select-field">
-				<span>{{ t('shortlinks', 'URL format') }}</span>
-				<select v-model="settings.urlMode" :disabled="!settings.allowUrlSettings">
-					<option value="inherit">{{ t('shortlinks', 'Use administrator default') }}</option>
-					<option value="simple">{{ t('shortlinks', 'Domain and append alias') }}</option>
-					<option value="template">{{ t('shortlinks', 'Template with placeholders') }}</option>
-					<option value="regex">{{ t('shortlinks', 'Regular expression replacement') }}</option>
-				</select>
-			</label>
+			<label class="select-field"><span>{{ t('shortlinks', 'URL format') }}</span><select v-model="settings.urlMode" :disabled="!settings.allowUrlSettings">
+				<option value="inherit">{{ t('shortlinks', 'Use administrator default') }}</option>
+				<option value="simple">{{ t('shortlinks', 'Domain and append alias') }}</option>
+				<option value="template">{{ t('shortlinks', 'Template with placeholders') }}</option>
+				<option value="regex">{{ t('shortlinks', 'Regular expression replacement') }}</option>
+			</select></label>
 			<NcTextField v-if="settings.urlMode === 'simple'"
 				v-model="settings.baseUrl"
 				type="url"
@@ -157,32 +150,25 @@ async function save() {
 				:label="t('shortlinks', 'URL template')"
 				:helper-text="t('shortlinks', 'Use {alias}; {user} is optional.')" />
 			<div v-else-if="settings.urlMode === 'regex'" class="preference-grid">
-				<NcTextField v-model="settings.urlPattern"
-					:label="t('shortlinks', 'Regular expression')"
-					:helper-text="t('shortlinks', 'Without delimiters; it is applied to the canonical URL.')" />
-				<NcTextField v-model="settings.urlReplacement"
-					:label="t('shortlinks', 'Replacement')"
-					:helper-text="t('shortlinks', 'Captured groups can be inserted with $1, $2, and so on.')" />
+				<NcTextField v-model="settings.urlPattern" :label="t('shortlinks', 'Regular expression')" :helper-text="t('shortlinks', 'Without delimiters; it is applied to the canonical URL.')" />
+				<NcTextField v-model="settings.urlReplacement" :label="t('shortlinks', 'Replacement')" :helper-text="t('shortlinks', 'Captured groups can be inserted with $1, $2, and so on.')" />
 			</div>
 			<NcNoteCard v-if="!settings.allowUrlSettings" type="info" :text="t('shortlinks', 'Your administrator manages the shared short-link URL globally.')" />
 			<div class="example-card">
 				<span>{{ t('shortlinks', 'Preview') }}</span><strong>{{ urlPreview || canonicalExample }}</strong>
 			</div>
 			<NcNoteCard v-if="settings.urlMode !== 'inherit'" type="warning" :text="t('shortlinks', 'Your custom domain must already forward requests to this Nextcloud Shortlinks endpoint.')" />
+			<NcButton type="submit" variant="primary" :disabled="saving">
+				{{ saving ? t('shortlinks', 'Saving…') : t('shortlinks', 'Save') }}
+			</NcButton>
 		</section>
-
-		<NcButton type="submit" variant="primary" :disabled="saving">
-			{{ saving ? t('shortlinks', 'Saving…') : t('shortlinks', 'Save') }}
-		</NcButton>
 	</form>
 </template>
 
 <style scoped>
-.alias-url-settings,
-.preference-group { display: grid; gap: calc(var(--default-grid-baseline) * 3); }
+.alias-url-settings, .preference-group { display: grid; gap: calc(var(--default-grid-baseline) * 3); }
 
-.preference-group h3,
-.preference-group p { margin: 0; }
+.preference-group h3, .preference-group p { margin: 0; }
 
 .preference-group p { color: var(--color-text-maxcontrast); }
 
@@ -196,7 +182,7 @@ async function save() {
 
 .example-card span { color: var(--color-text-maxcontrast); font-size: .9em; }
 
-.alias-url-settings > hr { inline-size: 100%; margin: 0; border: 0; border-block-start: 1px solid var(--color-border); }
+.preference-group > :last-child:is(button, .button-vue) { justify-self: start; }
 
-.alias-url-settings > :last-child { justify-self: start; }
+.autosave-status { min-block-size: 20px; color: var(--color-text-maxcontrast); font-size: .85rem; }
 </style>

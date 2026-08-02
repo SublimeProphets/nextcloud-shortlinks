@@ -53,7 +53,12 @@ final class AppContractTest extends TestCase {
 		$routes = require $this->root . '/appinfo/routes.php';
 		$routeKeys = array_map(static fn (array $route): string => $route['verb'] . ' ' . $route['url'], $routes['ocs']);
 		self::assertContains('POST /api/v1/aliases/suggest', $routeKeys);
+		self::assertContains('POST /api/v1/tools/metadata', $routeKeys);
 		self::assertContains('PUT /api/v1/folders/order', $routeKeys);
+		$publicRouteKeys = array_map(static fn (array $route): string => $route['verb'] . ' ' . $route['url'], $routes['routes']);
+		self::assertContains('GET /qr/bulk', $publicRouteKeys);
+		self::assertContains('GET /thumbnail/preview', $publicRouteKeys);
+		self::assertContains('GET /thumbnail/{id}', $publicRouteKeys);
 		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1101Date20260729220000.php');
 		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');

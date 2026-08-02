@@ -85,12 +85,20 @@ final class StatsService {
 	}
 
 	/** @return array<string,mixed> */
-	public function overview(int $from, int $to): array {
+	/** @param array<string,mixed> $filters */
+	public function overview(int $from, int $to, array $filters = []): array {
 		$uid = $this->policy->currentUid();
 		$now = $this->time->getTime();
 		$from = max(0, $from);
 		$to = max($from, min($to, $now));
-		$overview = $this->stats->overview($uid, $from, $to, $now);
+		$filters['ownerUid'] = $uid;
+		$filters['now'] = $now;
+		if (($filters['system'] ?? 'all') === 'dashboard' || ($filters['system'] ?? 'all') === 'statistics') {
+			$filters['system'] = 'all';
+		}
+		$visible = $this->links->findVisible($uid, [], $filters, 5000, 0);
+		$linkIds = array_map(static fn (ShortLink $link): int => $link->getId(), $visible);
+		$overview = $this->stats->overviewForLinks($linkIds, $from, $to, $now);
 		$overview['from'] = $from;
 		$overview['to'] = $to;
 		return $overview;

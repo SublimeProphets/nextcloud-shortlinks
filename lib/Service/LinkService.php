@@ -322,6 +322,8 @@ final class LinkService {
 					$this->restore($id);
 				} elseif ($action === 'permanent-delete') {
 					$this->delete($id, true);
+				} elseif ($action === 'copy') {
+					$this->cloneLinkToFolder($id, isset($changes['folderId']) && $changes['folderId'] !== null ? (int)$changes['folderId'] : null);
 				} elseif ($action === 'update') {
 					$update = $changes;
 					unset($update['action']);

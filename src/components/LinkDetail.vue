@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { mdiAccountGroupOutline, mdiChartDonut, mdiEarth, mdiLaptop, mdiMapMarkerOutline, mdiRobotOutline, mdiWeb } from '@mdi/js'
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { api } from '../api/client'
 import type { ActivityEntry, ClickEntry, LinkShare, LinkStats, Principal, ShortLink } from '../types'
+import StatsDimension from './StatsDimension.vue'
 
 type DetailTab = 'details' | 'stats' | 'clicks' | 'activity' | 'shares'
 
@@ -17,6 +19,7 @@ const clicks = ref<ClickEntry[]>([]); const clickPage = ref(1); const clickHasMo
 const granularity = ref<'hour' | 'day' | 'week' | 'month'>('day'); const statsDays = ref(30)
 const principalResults = ref<Principal[]>([]); const searchingPrincipals = ref(false)
 const sharePrincipal = ref(''); const shareType = ref<'user' | 'group'>('user'); const sharePurpose = ref<'management' | 'access'>('management'); const sharePermission = ref<'view' | 'edit'>('view')
+const dimensionIcons: Record<string, string> = { referrer: mdiWeb, country: mdiEarth, region: mdiMapMarkerOutline, browser: mdiWeb, os: mdiLaptop, device: mdiLaptop, authentication: mdiAccountGroupOutline, bot: mdiRobotOutline }
 /**
  * Load a detail tab on demand.
  *
@@ -72,19 +75,12 @@ onMounted(() => load('details'))
 				</tr>
 			</tbody>
 		</table>
-		<div v-for="(rows, dimension) in stats?.dimensions ?? {}" :key="dimension">
-			<template v-if="rows.length">
-				<h4>{{ dimensionLabel(dimension) }}</h4>
-				<table>
-					<thead><tr><th>{{ t('shortlinks', 'Value') }}</th><th>{{ t('shortlinks', 'Clicks') }}</th><th>{{ t('shortlinks', 'Unique visitors') }}</th></tr></thead>
-					<tbody>
-						<tr v-for="row in rows" :key="row.value">
-							<td>{{ row.value }}</td><td>{{ row.clicks }}</td><td>{{ row.uniqueVisitors }}</td>
-						</tr>
-					</tbody>
-				</table>
-			</template>
-		</div>
+		<StatsDimension v-for="(rows, dimension) in stats?.dimensions ?? {}"
+			:key="dimension"
+			:title="dimensionLabel(dimension)"
+			:icon="dimensionIcons[dimension] || mdiChartDonut"
+			:rows="rows"
+			show-unique />
 	</section>
 	<section v-else-if="tab === 'clicks'" class="detail-panel">
 		<h3>{{ t('shortlinks', 'Click log') }}</h3>

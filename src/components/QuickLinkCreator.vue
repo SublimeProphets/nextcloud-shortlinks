@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import {
 	mdiContentCopy,
 	mdiDownload,
@@ -18,7 +18,9 @@ import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import { useAliasValidation } from '../composables/useAliasValidation'
+import { useLinkMetadataPreview } from '../composables/useLinkMetadataPreview'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
+import LinkPreviewEditor from './LinkPreviewEditor.vue'
 
 const props = withDefaults(defineProps<{
 	folders: Folder[]
@@ -26,11 +28,13 @@ const props = withDefaults(defineProps<{
 	redirectStatuses?: number[]
 	allowedSchemes?: string[]
 	shortUrlTemplate?: string | null
+	allowTitleFetch?: boolean
 	create: (draft: Partial<LinkDraft>) => Promise<ShortLink>
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
 	shortUrlTemplate: null,
+	allowTitleFetch: false,
 })
 
 type SettingsGroup = 'organization' | 'access' | 'more'
@@ -86,6 +90,18 @@ const urlValid = computed(() => {
 		return false
 	}
 })
+const targetError = computed(() => {
+	if (!draft.targetUrl.trim()) return ''
+	try {
+		const parsed = new URL(draft.targetUrl)
+		return props.allowedSchemes.map(value => value.toLowerCase()).includes(parsed.protocol.replace(/:$/, '').toLowerCase())
+			? ''
+			: t('shortlinks', 'This URL scheme is not allowed. Allowed: {schemes}', { schemes: props.allowedSchemes.join(', ') })
+	} catch {
+		return t('shortlinks', 'Enter a complete URL including its scheme.')
+	}
+})
+const metadata = useLinkMetadataPreview(toRef(draft, 'targetUrl'), toRef(draft, 'title'), urlValid, computed(() => props.allowTitleFetch))
 const canCreate = computed(() => urlValid.value
 	&& alias.valid.value
 	&& !saving.value
@@ -120,7 +136,7 @@ const accessDetails = computed(() => {
 onMounted(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }))
 
 watch(() => [draft.title, draft.targetUrl], () => {
-	if (aliasEdited.value) return
+	if (aliasEdited.value || !urlValid.value) return
 	if (aliasTimer) clearTimeout(aliasTimer)
 	aliasTimer = setTimeout(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }), 450)
 })
@@ -183,6 +199,7 @@ function resetDraft() {
 	aliasEdited.value = false
 	activeSettings.value = null
 	limitClicks.value = false
+	metadata.resetTitleEditing()
 }
 
 async function createAnother() {
@@ -320,11 +337,16 @@ function toTimestamp(value: string): number | null {
 			</div>
 			<form @submit.prevent="submit">
 				<div class="quick-create__url-row">
-					<NcTextField v-model="draft.targetUrl"
-						type="url"
-						required
-						:label="t('shortlinks', 'Destination URL')"
-						placeholder="https://example.com/a/very/long/address" />
+					<LinkPreviewEditor :url="draft.targetUrl"
+						:title="draft.title"
+						:valid="urlValid"
+						:loading="metadata.loading.value"
+						:thumbnail-src="metadata.thumbnailSrc.value"
+						:url-error="targetError"
+						:url-hint="t('shortlinks', 'Paste the full address you want to shorten.')"
+						@update:url="draft.targetUrl = $event"
+						@update:title="draft.title = $event"
+						@title-edited="metadata.markTitleEdited" />
 					<NcButton type="submit" variant="primary" :disabled="!canCreate">
 						{{ saving ? t('shortlinks', 'Creating…') : t('shortlinks', 'Create') }}
 					</NcButton>
@@ -378,7 +400,6 @@ function toTimestamp(value: string): number | null {
 
 				<div v-if="activeSettings" class="quick-create__panel">
 					<div v-if="activeSettings === 'organization'" class="settings-grid">
-						<NcTextField v-model="draft.title" :label="t('shortlinks', 'Title')" />
 						<label class="select-field"><span>{{ t('shortlinks', 'Folder') }}</span><select v-model="draft.folderId"><option :value="null">{{ t('shortlinks', 'No folder') }}</option><option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option></select></label>
 						<fieldset v-if="tags.length" class="tag-picker">
 							<legend>{{ t('shortlinks', 'Tags') }}</legend><NcCheckboxRadioSwitch v-for="tag in tags"
@@ -550,6 +571,8 @@ function toTimestamp(value: string): number | null {
 	align-items: center;
 	gap: calc(var(--default-grid-baseline) * 3);
 }
+
+.quick-create__url-row > :first-child { min-inline-size: 0; }
 
 .quick-create__url-row > :last-child {
 	min-inline-size: 112px;

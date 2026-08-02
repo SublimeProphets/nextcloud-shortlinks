@@ -26,10 +26,10 @@ describe('StatsOverview', () => {
 	it('loads metrics and renders accessible table fallbacks', async () => {
 		apiMock.statsOverview.mockResolvedValue(overview)
 		const view = render(StatsOverview, { global: { stubs: { NcDialog: { template: '<div><slot/><slot name="actions"/></div>' }, NcButton: { template: '<button v-bind="$attrs"><slot/></button>' }, NcLoadingIcon: true } } })
-		expect(await view.findByText('Campaign')).toBeTruthy()
-		expect(view.getByText('Firefox')).toBeTruthy()
+		expect((await view.findAllByText('Campaign')).length).toBeGreaterThan(0)
+		expect(view.getAllByText('Firefox').length).toBeGreaterThan(0)
 		expect(view.getAllByRole('table')).toHaveLength(2)
-		await fireEvent.click(view.getByRole('button', { name: 'Refresh' }))
+		await fireEvent.click(view.getByRole('button', { name: 'Last 7 days' }))
 		expect(apiMock.statsOverview).toHaveBeenCalledTimes(2)
 	})
 

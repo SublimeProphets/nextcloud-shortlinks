@@ -171,6 +171,9 @@ final class ShortLinkMapper extends QBMapper {
 	/** @param array<string, mixed> $filters */
 	private function applyFilters(IQueryBuilder $qb, array $filters): void {
 		$system = (string)($filters['system'] ?? 'all');
+		if (isset($filters['ownerUid']) && (string)$filters['ownerUid'] !== '') {
+			$qb->andWhere($qb->expr()->eq('l.owner_uid', $qb->createNamedParameter((string)$filters['ownerUid'])));
+		}
 		if ($system === 'trash') {
 			$qb->andWhere($qb->expr()->isNotNull('l.deleted_at'));
 		} else {
@@ -184,6 +187,10 @@ final class ShortLinkMapper extends QBMapper {
 			$qb->andWhere($qb->expr()->isNotNull('l.expires_at'))->andWhere($qb->expr()->lt('l.expires_at', $qb->createNamedParameter((int)($filters['now'] ?? 0), IQueryBuilder::PARAM_INT)));
 		} elseif ($system === 'used') {
 			$qb->andWhere($qb->expr()->isNotNull('l.last_clicked_at'));
+		}
+		$linkIds = array_values(array_slice(array_unique(array_filter(array_map('intval', (array)($filters['linkIds'] ?? [])), static fn (int $id): bool => $id > 0)), 0, 200));
+		if ($linkIds !== []) {
+			$qb->andWhere($qb->expr()->in('l.id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)));
 		}
 		$folderIds = array_values(array_slice(array_unique(array_filter(array_map('intval', (array)($filters['folderIds'] ?? [])), static fn (int $id): bool => $id > 0)), 0, 200));
 		if ($folderIds !== []) {

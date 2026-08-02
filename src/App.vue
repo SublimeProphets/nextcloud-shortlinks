@@ -30,8 +30,13 @@ const showFolderCreate = ref(false)
 const showTagCreate = ref(false)
 const showSettings = ref(false)
 const showStats = ref(false)
+const statsPagePeriod = ref<'7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'>('30d')
+const statsPageFrom = ref('')
+const statsPageTo = ref('')
+const statsDialogContext = ref<{ title: string; color: string | null; filters: Record<string, unknown> }>({ title: '', color: null, filters: {} })
 const createFolderParentId = ref<number | null>(null)
 const createLinkFolderId = ref<number | null>(null)
+const createLinkTagIds = ref<number[]>([])
 const destinationFolder = ref<Folder | null>(null)
 const destinationMode = ref<'move' | 'copy'>('move')
 const deletingFolder = ref<Folder | null>(null)
@@ -39,6 +44,7 @@ const selectedLink = ref<ShortLink | null>(null)
 const editLink = ref<ShortLink | null>(null)
 const prefill = new URLSearchParams(location.search)
 const isDashboard = computed(() => store.state.system === 'dashboard' && store.state.folderId === null && store.state.tagIds.length === 0)
+const isStatistics = computed(() => store.state.system === 'statistics')
 
 onMounted(async () => {
 	await store.refresh()
@@ -61,8 +67,9 @@ function openFolderCreate(parentId: number | null = null) {
 	showFolderCreate.value = true
 }
 
-function openLinkCreate(folderId: number | null = null) {
-	createLinkFolderId.value = folderId
+function openLinkCreate(folderId?: number | null, tagIds?: number[]) {
+	createLinkFolderId.value = folderId === undefined ? store.state.folderId : folderId
+	createLinkTagIds.value = tagIds ?? [...store.state.tagIds]
 	showCreate.value = true
 }
 
@@ -127,6 +134,32 @@ async function createTag(value: { name: string; color: string | null }) {
 		showError(error instanceof Error ? error.message : String(error))
 	}
 }
+
+function currentStatsContext(): { title: string; color: string | null; filters: Record<string, unknown> } {
+	const folder = store.state.folders.find(item => item.id === store.state.folderId)
+	const activeTags = store.state.tags.filter(tag => store.state.tagIds.includes(tag.id))
+	const systemLabels: Record<string, string> = { all: 'All links', favorites: 'Favorites', trending: 'Trending links', recent: 'Recently created', used: 'Recently used', expired: 'Expired', inactive: 'Inactive', trash: 'Trash' }
+	return {
+		title: folder?.name || (activeTags.length ? activeTags.map(tag => tag.name).join(', ') : t('shortlinks', systemLabels[store.state.system] || 'All links')),
+		color: activeTags.length === 1 ? activeTags[0]?.color ?? null : null,
+		filters: { system: store.state.system, folderId: store.state.folderId ?? undefined, tagIds: [...store.state.tagIds], tagMode: store.state.tagMode, active: store.state.active ?? undefined },
+	}
+}
+
+function openViewStats() {
+	statsDialogContext.value = currentStatsContext()
+	showStats.value = true
+}
+
+function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?: string; to?: string }) {
+	statsPagePeriod.value = value.period
+	statsPageFrom.value = value.from ?? ''
+	statsPageTo.value = value.to ?? ''
+	store.state.system = 'statistics'
+	store.state.folderId = null
+	store.state.tagIds = []
+	store.state.selected.clear()
+}
 </script>
 
 <template>
@@ -144,6 +177,7 @@ async function createTag(value: { name: string; color: string | null }) {
 			@copy-folder="openFolderDestination($event, 'copy')"
 			@export-folder="exportFolder($event)"
 			@delete-folder="deletingFolder = $event"
+			@statistics="openStatisticsPage"
 			@settings="showSettings = true" />
 		<NcAppContent>
 			<ContentToolbar :folders="store.state.folders"
@@ -155,22 +189,31 @@ async function createTag(value: { name: string; color: string | null }) {
 				:search="store.state.search"
 				:created-from="store.state.createdFrom"
 				:active="store.state.active"
-				:list-mode="!isDashboard"
+				:list-mode="!isDashboard && !isStatistics"
 				@create-link="openLinkCreate()"
-				@create-folder="openFolderCreate()"
+				@create-folder="openFolderCreate(store.state.folderId)"
 				@create-tag="showTagCreate = true"
 				@filter="store.setFilter($event.system, $event.folderId)"
 				@open-tag="store.openTag($event)"
 				@set-tags="store.setTagFilter($event.ids, $event.mode)"
 				@search="store.setSearchFilters($event)"
-				@overview="showStats = true"
+				@overview="openViewStats"
 				@refresh="store.refresh()" />
-			<DashboardView v-if="isDashboard"
+			<StatsOverview v-if="isStatistics"
+				:key="`${statsPagePeriod}-${statsPageFrom}-${statsPageTo}`"
+				mode="page"
+				:context-title="t('shortlinks', 'All links')"
+				:filters="{ system: 'all' }"
+				:initial-period="statsPagePeriod"
+				:initial-from="statsPageFrom"
+				:initial-to="statsPageTo" />
+			<DashboardView v-else-if="isDashboard"
 				:folders="store.state.folders"
 				:tags="store.state.tags"
 				:redirect-statuses="capabilities.redirectStatuses"
 				:allowed-schemes="settings.allowedSchemes"
 				:short-url-template="settings.shortUrlTemplate"
+				:allow-title-fetch="settings.titleFetch"
 				:create="store.create"
 				@open="selectedLink = $event" />
 			<LinkList v-else
@@ -188,6 +231,7 @@ async function createTag(value: { name: string; color: string | null }) {
 				@open="selectedLink = $event"
 				@options="store.setListOptions($event)"
 				@toggle="store.toggleSelected($event)"
+				@select-all="store.setSelected($event)"
 				@refresh="store.refresh()"
 				@bulk="store.bulk($event)"
 				@more="store.loadMore()" />
@@ -206,8 +250,9 @@ async function createTag(value: { name: string; color: string | null }) {
 			:prefill-url="prefill.get('url') || ''"
 			:prefill-title="prefill.get('title') || ''"
 			:prefill-folder-id="createLinkFolderId"
-			@close="showCreate = false; createLinkFolderId = null"
-			@save="store.create($event).then(() => { showCreate = false; createLinkFolderId = null })" />
+			:prefill-tag-ids="createLinkTagIds"
+			@close="showCreate = false; createLinkFolderId = null; createLinkTagIds = []"
+			@save="store.create($event).then(() => { showCreate = false; createLinkFolderId = null; createLinkTagIds = [] })" />
 		<LinkForm v-if="editLink"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
@@ -240,6 +285,10 @@ async function createTag(value: { name: string; color: string | null }) {
 			:folders="store.state.folders"
 			@close="deletingFolder = null"
 			@delete="deleteFolder" />
-		<StatsOverview v-if="showStats" @close="showStats = false" />
+		<StatsOverview v-if="showStats"
+			:context-title="statsDialogContext.title"
+			:context-color="statsDialogContext.color"
+			:filters="statsDialogContext.filters"
+			@close="showStats = false" />
 	</NcContent>
 </template>

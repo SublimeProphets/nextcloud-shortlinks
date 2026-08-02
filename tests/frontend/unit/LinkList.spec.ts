@@ -10,6 +10,8 @@ const { apiMock } = vi.hoisted(() => ({
 		restoreLink: vi.fn(),
 		cloneLink: vi.fn(),
 		qrUrl: vi.fn().mockReturnValue('/qr/1'),
+		thumbnailUrl: vi.fn().mockReturnValue('/thumbnail/1'),
+		bulkQrUrl: vi.fn().mockReturnValue('/qr/bulk'),
 	},
 }))
 vi.mock('../../../src/api/client', () => ({ api: apiMock }))
@@ -58,6 +60,7 @@ const global = {
 describe('LinkList', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		window.localStorage.setItem('shortlinks-view-mode', 'table')
 	})
 
 	it('sorts by an interactive table heading and toggles its direction', async () => {

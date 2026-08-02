@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
 	mdiCalendarRemoveOutline,
+	mdiCalendarRange,
+	mdiChartBoxOutline,
 	mdiCogOutline,
 	mdiCursorDefaultClickOutline,
 	mdiHistory,
@@ -32,6 +34,7 @@ const emit = defineEmits<{
 	copyFolder: [folder: Folder]
 	exportFolder: [folder: Folder]
 	deleteFolder: [folder: Folder]
+	statistics: [value: { period: '7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'; from?: string; to?: string }]
 }>()
 const systemItems = [
 	{ id: 'dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline },
@@ -44,6 +47,14 @@ const systemItems = [
 	{ id: 'inactive', label: 'Inactive', icon: mdiLinkOff },
 ]
 const expandedIds = ref(new Set<number>())
+const statisticsOpen = ref(true)
+const activeStatisticsPeriod = ref<'7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'>('30d')
+const customFrom = ref(new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10))
+const customTo = ref(new Date().toISOString().slice(0, 10))
+const statisticsPeriods = [
+	{ id: '7d' as const, label: 'Last 7 days' }, { id: '30d' as const, label: 'Last 30 days' }, { id: '90d' as const, label: 'Last 3 months' },
+	{ id: 'thisYear' as const, label: 'This year' }, { id: 'lastYear' as const, label: 'Last year' }, { id: 'all' as const, label: 'Since the beginning' }, { id: 'custom' as const, label: 'Custom' },
+]
 const rootFolders = computed(() => props.folders
 	.filter(folder => folder.parentId === null)
 	.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)))
@@ -65,6 +76,15 @@ function toggleFolder(value: { id: number; open: boolean }) {
 	const next = new Set(expandedIds.value)
 	value.open ? next.add(value.id) : next.delete(value.id)
 	expandedIds.value = next
+}
+
+function openStatistics(period: typeof activeStatisticsPeriod.value) {
+	activeStatisticsPeriod.value = period
+	if (period !== 'custom') emit('statistics', { period })
+}
+
+function applyCustomStatistics() {
+	emit('statistics', { period: 'custom', from: customFrom.value, to: customTo.value })
 }
 </script>
 
@@ -105,8 +125,35 @@ function toggleFolder(value: { id: number; open: boolean }) {
 				:active="activeTagIds.includes(tag.id)"
 				@click="emit('tag', tag.id)">
 				<template #icon>
-					<NcIconSvgWrapper :path="mdiTagOutline" />
+					<span class="tag-navigation-icon" :style="{ color: tag.color || undefined }"><NcIconSvgWrapper :path="mdiTagOutline" /></span>
 				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem :name="t('shortlinks', 'Statistics')"
+				:active="activeSystem === 'statistics'"
+				allow-collapse
+				:open="statisticsOpen"
+				@click="openStatistics(activeStatisticsPeriod)"
+				@update:open="statisticsOpen = $event">
+				<template #icon>
+					<NcIconSvgWrapper :path="mdiChartBoxOutline" />
+				</template>
+				<NcAppNavigationItem v-for="period in statisticsPeriods"
+					:key="period.id"
+					:name="t('shortlinks', period.label)"
+					:active="activeSystem === 'statistics' && activeStatisticsPeriod === period.id"
+					@click="openStatistics(period.id)">
+					<template #icon>
+						<NcIconSvgWrapper :path="period.id === 'custom' ? mdiCalendarRange : mdiChartBoxOutline" />
+					</template>
+				</NcAppNavigationItem>
+				<li v-if="activeStatisticsPeriod === 'custom'" class="statistics-custom" @click.stop>
+					<label><span>{{ t('shortlinks', 'Start date') }}</span><input v-model="customFrom" type="date"></label>
+					<label><span>{{ t('shortlinks', 'End date') }}</span><input v-model="customTo" type="date"></label>
+					<button type="button" @click="applyCustomStatistics">
+						{{ t('shortlinks', 'Apply') }}
+					</button>
+				</li>
 			</NcAppNavigationItem>
 		</ul>
 		<template #footer>
@@ -144,4 +191,14 @@ function toggleFolder(value: { id: number; open: boolean }) {
 	padding-block-start: calc(var(--default-grid-baseline) * 2);
 	border-block-start: 1px solid var(--color-border);
 }
+
+.tag-navigation-icon { display: grid; place-items: center; color: var(--color-main-text); }
+
+.statistics-custom { display: grid; gap: calc(var(--default-grid-baseline) * 2); padding: calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 3) 44px; }
+
+.statistics-custom label { display: grid; gap: var(--default-grid-baseline); color: var(--color-text-maxcontrast); font-size: .8rem; }
+
+.statistics-custom input { min-inline-size: 0; inline-size: 100%; min-block-size: 38px; margin: 0; }
+
+.statistics-custom button { min-block-size: 38px; border: 0; border-radius: var(--border-radius-pill); background: var(--color-primary-element); color: var(--color-primary-element-text); cursor: pointer; }
 </style>

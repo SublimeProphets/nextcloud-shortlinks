@@ -67,6 +67,7 @@ const emit = defineEmits<{
 
 const systemItems = [
 	{ id: 'dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline },
+	{ id: 'statistics', label: 'Statistics', icon: mdiChartBoxOutline },
 	{ id: 'all', label: 'All links', icon: mdiLinkVariant },
 	{ id: 'favorites', label: 'Favorites', icon: mdiStarOutline },
 	{ id: 'trending', label: 'Trending links', icon: mdiTrendingUp },

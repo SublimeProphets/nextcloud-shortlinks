@@ -17,11 +17,13 @@ const props = withDefaults(defineProps<{
 	redirectStatuses?: number[]
 	allowedSchemes?: string[]
 	shortUrlTemplate?: string | null
+	allowTitleFetch?: boolean
 	create: (draft: Partial<LinkDraft>) => Promise<ShortLink>
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
 	shortUrlTemplate: null,
+	allowTitleFetch: false,
 })
 const emit = defineEmits<{ open: [link: ShortLink] }>()
 const newest = ref<ShortLink[]>([])
@@ -74,6 +76,7 @@ const columns = [
 			:redirect-statuses="redirectStatuses"
 			:allowed-schemes="allowedSchemes"
 			:short-url-template="shortUrlTemplate"
+			:allow-title-fetch="allowTitleFetch"
 			:create="createAndRefresh" />
 
 		<NcLoadingIcon v-if="loading"
@@ -93,6 +96,7 @@ const columns = [
 					<CompactLinkCard v-for="link in column.links.value"
 						:key="link.id"
 						:link="link"
+						:folder="folders.find(folder => folder.id === link.folderId)"
 						@open="emit('open', $event)" />
 				</div>
 				<NcEmptyContent v-else :name="t('shortlinks', 'No links to show')" :description="t('shortlinks', 'This section fills up as you use Shortlinks.')" />

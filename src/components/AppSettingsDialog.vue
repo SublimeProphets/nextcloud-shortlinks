@@ -1,22 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
-	mdiArrowDown,
-	mdiArrowUp,
-	mdiBookmarkPlusOutline,
-	mdiDeleteOutline,
-	mdiFolderMultipleOutline,
-	mdiFolderRemoveOutline,
-	mdiInformationOutline,
-	mdiLinkVariant,
-	mdiMerge,
-	mdiPencilOutline,
-	mdiPlus,
-	mdiTagMultipleOutline,
+	mdiBookmarkPlusOutline, mdiDeleteOutline, mdiFolderMultipleOutline, mdiFolderRemoveOutline,
+	mdiIdentifier, mdiInformationOutline, mdiLinkVariant, mdiPlus, mdiShareVariantOutline, mdiTagMultipleOutline,
 } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcAppSettingsDialog from '@nextcloud/vue/components/NcAppSettingsDialog'
 import NcAppSettingsSection from '@nextcloud/vue/components/NcAppSettingsSection'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -24,14 +13,14 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcFormBoxButton from '@nextcloud/vue/components/NcFormBoxButton'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
-import NcListItem from '@nextcloud/vue/components/NcListItem'
 import { api } from '../api/client'
-import { folderIconPath } from '../folderIcons'
 import type { Folder, FolderIcon, Tag } from '../types'
 import AliasUrlSettings from './AliasUrlSettings.vue'
-import FolderForm from './FolderForm.vue'
 import BookmarkletGuide from './BookmarkletGuide.vue'
+import FolderForm from './FolderForm.vue'
+import FolderTreeList from './FolderTreeList.vue'
 import TagForm from './TagForm.vue'
+import TagList from './TagList.vue'
 
 const props = defineProps<{ open: boolean; folders: Folder[]; tags: Tag[] }>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; changed: []; settingsSaved: [shortUrlTemplate: string] }>()
@@ -42,23 +31,6 @@ const editingTag = ref<Tag | null>(null)
 const creatingTag = ref(false)
 const mergingTag = ref<Tag | null>(null)
 const mergeTargetId = ref<number | null>(null)
-const draggedFolder = ref<Folder | null>(null)
-const dropTargetId = ref<number | null>(null)
-
-const orderedFolders = computed(() => {
-	const result: Array<{ folder: Folder; depth: number }> = []
-	function append(parentId: number | null, depth: number) {
-		props.folders
-			.filter(folder => folder.parentId === parentId)
-			.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-			.forEach(folder => {
-				result.push({ folder, depth })
-				append(folder.id, depth + 1)
-			})
-	}
-	append(null, 0)
-	return result
-})
 
 const deleteLinkCount = computed(() => {
 	if (!deletingFolder.value) return 0
@@ -66,137 +38,39 @@ const deleteLinkCount = computed(() => {
 	for (let changed = true; changed;) {
 		changed = false
 		for (const folder of props.folders) {
-			if (folder.parentId !== null && ids.has(folder.parentId) && !ids.has(folder.id)) {
-				ids.add(folder.id)
-				changed = true
-			}
+			if (folder.parentId !== null && ids.has(folder.parentId) && !ids.has(folder.id)) { ids.add(folder.id); changed = true }
 		}
 	}
 	return props.folders.filter(folder => ids.has(folder.id)).reduce((sum, folder) => sum + folder.count, 0)
 })
 
-function siblings(folder: Folder): Folder[] {
-	return props.folders
-		.filter(item => item.parentId === folder.parentId)
-		.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-}
-
-function linkCountLabel(count: number): string {
-	return count === 1
-		? t('shortlinks', '{count} link', { count })
-		: t('shortlinks', '{count} links', { count })
-}
-
 async function saveFolder(value: { name: string; parentId: number | null; icon: FolderIcon }) {
 	try {
-		if (editingFolder.value) {
-			await api.updateFolder(editingFolder.value.id, value)
-			editingFolder.value = null
-		} else {
-			await api.createFolder(value.name, value.parentId, value.icon)
-			creatingFolder.value = false
-		}
-		emit('changed')
-		showSuccess(t('shortlinks', 'Folder saved'))
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
-}
-
-async function moveFolder(folder: Folder, offset: -1 | 1) {
-	const current = siblings(folder)
-	const index = current.findIndex(item => item.id === folder.id)
-	const target = index + offset
-	if (index < 0 || target < 0 || target >= current.length) return
-	const ids = current.map(item => item.id)
-	const [moved] = ids.splice(index, 1)
-	if (moved === undefined) return
-	ids.splice(target, 0, moved)
-	await reorder(folder.parentId, ids)
-}
-
-async function reorder(parentId: number | null, ids: number[]) {
-	try {
-		await api.reorderFolders(parentId, ids)
-		emit('changed')
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
-}
-
-function dragStart(folder: Folder, event: DragEvent) {
-	draggedFolder.value = folder
-	event.dataTransfer?.setData('text/plain', String(folder.id))
-	if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-}
-
-function dragOver(folder: Folder, event: DragEvent) {
-	if (draggedFolder.value?.parentId !== folder.parentId || draggedFolder.value.id === folder.id) return
-	event.preventDefault()
-	dropTargetId.value = folder.id
-	if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-}
-
-async function drop(folder: Folder, event: DragEvent) {
-	event.preventDefault()
-	const source = draggedFolder.value
-	draggedFolder.value = null
-	dropTargetId.value = null
-	if (!source || source.parentId !== folder.parentId || source.id === folder.id) return
-	const ids = siblings(folder).map(item => item.id).filter(id => id !== source.id)
-	ids.splice(ids.indexOf(folder.id), 0, source.id)
-	await reorder(folder.parentId, ids)
+		if (editingFolder.value) { await api.updateFolder(editingFolder.value.id, value); editingFolder.value = null } else { await api.createFolder(value.name, value.parentId, value.icon); creatingFolder.value = false }
+		emit('changed'); showSuccess(t('shortlinks', 'Folder saved'))
+	} catch (error) { showError(error instanceof Error ? error.message : String(error)) }
 }
 
 async function deleteSelectedFolder(deleteLinks: boolean) {
 	if (!deletingFolder.value) return
-	try {
-		await api.deleteFolder(deletingFolder.value.id, deleteLinks)
-		deletingFolder.value = null
-		emit('changed')
-		showSuccess(t('shortlinks', 'Folder deleted'))
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
+	try { await api.deleteFolder(deletingFolder.value.id, deleteLinks); deletingFolder.value = null; emit('changed'); showSuccess(t('shortlinks', 'Folder deleted')) } catch (error) { showError(error instanceof Error ? error.message : String(error)) }
 }
 
 async function saveTag(value: { name: string; color: string | null }) {
 	try {
-		if (editingTag.value) {
-			await api.updateTag(editingTag.value.id, value.name, value.color)
-			editingTag.value = null
-		} else {
-			await api.createTag(value.name, value.color)
-			creatingTag.value = false
-		}
-		emit('changed')
-		showSuccess(t('shortlinks', 'Tag saved'))
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
+		if (editingTag.value) { await api.updateTag(editingTag.value.id, value.name, value.color); editingTag.value = null } else { await api.createTag(value.name, value.color); creatingTag.value = false }
+		emit('changed'); showSuccess(t('shortlinks', 'Tag saved'))
+	} catch (error) { showError(error instanceof Error ? error.message : String(error)) }
 }
 
 async function deleteTag(tag: Tag) {
 	if (!window.confirm(t('shortlinks', 'Delete the tag “{name}”?', { name: tag.name }))) return
-	try {
-		await api.deleteTag(tag.id)
-		emit('changed')
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
+	try { await api.deleteTag(tag.id); emit('changed') } catch (error) { showError(error instanceof Error ? error.message : String(error)) }
 }
 
 async function mergeTag() {
 	if (!mergingTag.value || mergeTargetId.value === null) return
-	try {
-		await api.mergeTag(mergingTag.value.id, mergeTargetId.value)
-		mergingTag.value = null
-		mergeTargetId.value = null
-		emit('changed')
-		showSuccess(t('shortlinks', 'Tags merged'))
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	}
+	try { await api.mergeTag(mergingTag.value.id, mergeTargetId.value); mergingTag.value = null; mergeTargetId.value = null; emit('changed'); showSuccess(t('shortlinks', 'Tags merged')) } catch (error) { showError(error instanceof Error ? error.message : String(error)) }
 }
 </script>
 
@@ -211,18 +85,27 @@ async function mergeTag() {
 			:order="10">
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiBookmarkPlusOutline" />
-			</template>
-			<BookmarkletGuide :show-heading="false" />
+			</template><BookmarkletGuide :show-heading="false" />
 		</NcAppSettingsSection>
 
 		<NcAppSettingsSection id="aliases"
-			:name="t('shortlinks', 'Aliases and sharing URLs')"
-			:description="t('shortlinks', 'Personalize automatic aliases and the short-link URL you copy and share.')"
+			:name="t('shortlinks', 'Automatic aliases')"
+			:description="t('shortlinks', 'Choose how aliases are generated and how collisions are resolved.')"
 			:order="15">
 			<template #icon>
-				<NcIconSvgWrapper :path="mdiLinkVariant" />
+				<NcIconSvgWrapper :path="mdiIdentifier" />
 			</template>
-			<AliasUrlSettings @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
+			<AliasUrlSettings section="alias" @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="sharing-url"
+			:name="t('shortlinks', 'URL used for sharing')"
+			:description="t('shortlinks', 'Choose the address that is displayed, copied, and shared.')"
+			:order="16">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiShareVariantOutline" />
+			</template>
+			<AliasUrlSettings section="url" @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
 		</NcAppSettingsSection>
 
 		<NcAppSettingsSection id="folders"
@@ -233,61 +116,18 @@ async function mergeTag() {
 				<NcIconSvgWrapper :path="mdiFolderMultipleOutline" />
 			</template>
 			<div class="settings-section-content">
-				<NcButton variant="primary" @click="creatingFolder = true">
+				<NcEmptyContent v-if="folders.length === 0" :name="t('shortlinks', 'No folders yet')" :description="t('shortlinks', 'Create a folder to group related short links.')" />
+				<FolderTreeList v-else
+					:folders="folders"
+					mode="manage"
+					@edit="editingFolder = $event"
+					@delete="deletingFolder = $event"
+					@changed="emit('changed')" />
+				<NcButton variant="tertiary" class="add-button" @click="creatingFolder = true">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiPlus" />
 					</template>{{ t('shortlinks', 'New folder') }}
 				</NcButton>
-				<p v-if="folders.length > 1" class="settings-hint">
-					{{ t('shortlinks', 'Drag folders to reorder them, or use the arrow actions for keyboard access. Folders can only be reordered within the same parent.') }}
-				</p>
-				<NcEmptyContent v-if="folders.length === 0" :name="t('shortlinks', 'No folders yet')" :description="t('shortlinks', 'Create a folder to group related short links.')" />
-				<ul v-else class="management-list" :aria-label="t('shortlinks', 'Folders')">
-					<li v-for="entry in orderedFolders"
-						:key="entry.folder.id"
-						draggable="true"
-						:class="{ 'management-list__drop-target': dropTargetId === entry.folder.id }"
-						:style="{ '--folder-depth': entry.depth }"
-						@dragstart="dragStart(entry.folder, $event)"
-						@dragover="dragOver(entry.folder, $event)"
-						@dragleave="dropTargetId = null"
-						@dragend="draggedFolder = null; dropTargetId = null"
-						@drop="drop(entry.folder, $event)">
-						<NcListItem :name="entry.folder.name"
-							:details="linkCountLabel(entry.folder.count)"
-							:actions-aria-label="t('shortlinks', 'Folder actions for {name}', { name: entry.folder.name })"
-							@click="editingFolder = entry.folder">
-							<template #icon>
-								<NcIconSvgWrapper :path="folderIconPath(entry.folder.icon)" />
-							</template>
-							<template #subname>
-								{{ entry.folder.parentId === null ? t('shortlinks', 'Top level') : t('shortlinks', 'Nested folder') }}
-							</template>
-							<template #actions>
-								<NcActionButton :name="t('shortlinks', 'Move up')" :disabled="siblings(entry.folder)[0]?.id === entry.folder.id" @click="moveFolder(entry.folder, -1)">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiArrowUp" />
-									</template>
-								</NcActionButton>
-								<NcActionButton :name="t('shortlinks', 'Move down')" :disabled="siblings(entry.folder).at(-1)?.id === entry.folder.id" @click="moveFolder(entry.folder, 1)">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiArrowDown" />
-									</template>
-								</NcActionButton>
-								<NcActionButton :name="t('shortlinks', 'Edit')" @click="editingFolder = entry.folder">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiPencilOutline" />
-									</template>
-								</NcActionButton>
-								<NcActionButton :name="t('shortlinks', 'Delete')" @click="deletingFolder = entry.folder">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiDeleteOutline" />
-									</template>
-								</NcActionButton>
-							</template>
-						</NcListItem>
-					</li>
-				</ul>
 			</div>
 		</NcAppSettingsSection>
 
@@ -299,38 +139,18 @@ async function mergeTag() {
 				<NcIconSvgWrapper :path="mdiTagMultipleOutline" />
 			</template>
 			<div class="settings-section-content">
-				<NcButton variant="primary" @click="creatingTag = true">
+				<NcEmptyContent v-if="tags.length === 0" :name="t('shortlinks', 'No tags yet')" :description="t('shortlinks', 'Create a tag to make links easier to find.')" />
+				<TagList v-else
+					:tags="tags"
+					mode="manage"
+					@edit="editingTag = $event"
+					@merge="mergingTag = $event"
+					@delete="deleteTag" />
+				<NcButton variant="tertiary" class="add-button" @click="creatingTag = true">
 					<template #icon>
 						<NcIconSvgWrapper :path="mdiPlus" />
 					</template>{{ t('shortlinks', 'New tag') }}
 				</NcButton>
-				<NcEmptyContent v-if="tags.length === 0" :name="t('shortlinks', 'No tags yet')" :description="t('shortlinks', 'Create a tag to make links easier to find.')" />
-				<ul v-else class="management-list">
-					<li v-for="tag in tags" :key="tag.id">
-						<NcListItem :name="tag.name" :details="linkCountLabel(tag.count)">
-							<template #icon>
-								<span class="tag-color" :style="{ backgroundColor: tag.color || 'var(--color-primary-element)' }" />
-							</template>
-							<template #actions>
-								<NcActionButton :name="t('shortlinks', 'Edit')" @click="editingTag = tag">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiPencilOutline" />
-									</template>
-								</NcActionButton>
-								<NcActionButton v-if="tags.length > 1" :name="t('shortlinks', 'Merge')" @click="mergingTag = tag">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiMerge" />
-									</template>
-								</NcActionButton>
-								<NcActionButton :name="t('shortlinks', 'Delete')" @click="deleteTag(tag)">
-									<template #icon>
-										<NcIconSvgWrapper :path="mdiDeleteOutline" />
-									</template>
-								</NcActionButton>
-							</template>
-						</NcListItem>
-					</li>
-				</ul>
 			</div>
 		</NcAppSettingsSection>
 
@@ -342,8 +162,7 @@ async function mergeTag() {
 				<NcIconSvgWrapper :path="mdiInformationOutline" />
 			</template>
 			<div class="about-section">
-				<NcIconSvgWrapper :path="mdiLinkVariant" :size="48" />
-				<div><h3>{{ t('shortlinks', 'Shortlinks') }}</h3><p>{{ t('shortlinks', 'Create memorable redirects, organize them, and understand how they are used.') }}</p></div>
+				<NcIconSvgWrapper :path="mdiLinkVariant" :size="48" /><div><h3>{{ t('shortlinks', 'Shortlinks') }}</h3><p>{{ t('shortlinks', 'Create memorable redirects, organize them, and understand how they are used.') }}</p></div>
 			</div>
 		</NcAppSettingsSection>
 	</NcAppSettingsDialog>
@@ -377,13 +196,11 @@ async function mergeTag() {
 			<NcFormBoxButton :label="t('shortlinks', 'Delete folder and links')" inverted-accent @click="deleteSelectedFolder(true)">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiDeleteOutline" />
-				</template>
-				<template #description>
+				</template><template #description>
 					<span>{{ t('shortlinks', 'Moves') }} <strong>{{ deleteLinkCount }}</strong> {{ t('shortlinks', 'short links to trash.') }}</span>
 				</template>
 			</NcFormBoxButton>
-		</div>
-		<template #actions>
+		</div><template #actions>
 			<NcButton @click="deletingFolder = null">
 				{{ t('shortlinks', 'Cancel') }}
 			</NcButton>
@@ -408,88 +225,23 @@ async function mergeTag() {
 </template>
 
 <style scoped>
-.settings-section-content,
-.delete-choices,
-.merge-form {
-	display: grid;
-	gap: calc(var(--default-grid-baseline) * 3);
-}
+.settings-section-content, .delete-choices, .merge-form { display: grid; gap: calc(var(--default-grid-baseline) * 3); }
 
-.settings-section-content > :first-child {
-	justify-self: start;
-}
+.settings-section-content { inline-size: min(100%, 720px); }
 
-.settings-hint {
-	margin: 0;
-	color: var(--color-text-maxcontrast);
-}
+.add-button { justify-self: start; margin-block-start: calc(var(--default-grid-baseline) * 2); }
 
-.management-list {
-	inline-size: min(100%, 680px);
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
+.delete-choices, .merge-form { padding-block: calc(var(--default-grid-baseline) * 2); }
 
-.management-list > li {
-	padding-inline-start: calc(var(--folder-depth, 0) * 24px);
-	border-block-end: 1px solid var(--color-border);
-	transition: background-color .15s ease;
-}
+.delete-choices p, .merge-form p { margin: 0; }
 
-.management-list > li[draggable="true"] {
-	cursor: grab;
-}
+.select-field { display: grid; gap: var(--default-grid-baseline); font-weight: 600; }
 
-.management-list__drop-target {
-	background: var(--color-primary-element-light-hover);
-	box-shadow: inset 0 2px var(--color-primary-element);
-}
+.select-field select { inline-size: 100%; min-block-size: 44px; margin: 0; font-weight: normal; }
 
-.tag-color {
-	display: block;
-	inline-size: 20px;
-	block-size: 20px;
-	border: 1px solid var(--color-border-dark);
-	border-radius: 50%;
-}
+.about-section { display: flex; gap: calc(var(--default-grid-baseline) * 4); align-items: flex-start; }
 
-.delete-choices,
-.merge-form {
-	padding-block: calc(var(--default-grid-baseline) * 2);
-}
+.about-section h3, .about-section p { margin: 0; }
 
-.delete-choices p,
-.merge-form p {
-	margin: 0;
-}
-
-.select-field {
-	display: grid;
-	gap: var(--default-grid-baseline);
-	font-weight: 600;
-}
-
-.select-field select {
-	inline-size: 100%;
-	min-block-size: 44px;
-	margin: 0;
-	font-weight: normal;
-}
-
-.about-section {
-	display: flex;
-	gap: calc(var(--default-grid-baseline) * 4);
-	align-items: flex-start;
-}
-
-.about-section h3,
-.about-section p {
-	margin: 0;
-}
-
-.about-section p {
-	margin-block-start: var(--default-grid-baseline);
-	color: var(--color-text-maxcontrast);
-}
+.about-section p { margin-block-start: var(--default-grid-baseline); color: var(--color-text-maxcontrast); }
 </style>

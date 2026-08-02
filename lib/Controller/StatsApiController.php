@@ -29,15 +29,20 @@ final class StatsApiController extends AbstractApiOCSController {
 	 *
 	 * @param null|int $from Inclusive Unix start timestamp
 	 * @param null|int $to Inclusive Unix end timestamp
+	 * @param string $system Collection filter
+	 * @param null|int $folderId Folder identifier
+	 * @param list<int> $tagIds Tag identifiers
+	 * @param string $tagMode Tag matching mode
+	 * @param null|bool $active Optional active-state filter
 	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
 	 *
 	 * 200: Aggregate statistics
 	 */
 	#[NoAdminRequired]
-	public function overview(?int $from = null, ?int $to = null): DataResponse {
+	public function overview(?int $from = null, ?int $to = null, string $system = 'all', ?int $folderId = null, array $tagIds = [], string $tagMode = 'and', ?bool $active = null): DataResponse {
 		$to ??= $this->time->getTime();
 		$from ??= $to - 30 * 86400;
-		return $this->respond(fn () => $this->stats->overview($from, $to));
+		return $this->respond(fn () => $this->stats->overview($from, $to, ['system' => $system, 'folderId' => $folderId, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'active' => $active]));
 	}
 	/**
 	 * Return statistics for one link

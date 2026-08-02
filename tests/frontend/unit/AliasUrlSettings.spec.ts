@@ -38,19 +38,32 @@ const global = {
 }
 
 describe('AliasUrlSettings', () => {
-	it('saves readable aliases and a personal simple domain', async () => {
+	it('automatically saves readable alias preferences without a save button', async () => {
+		apiMock.getUserSettings.mockResolvedValue({ ...response })
+		apiMock.updateUserSettings.mockImplementation(async value => ({ ...response, ...value }))
+		const view = render(AliasUrlSettings, { props: { section: 'alias' }, global })
+		await view.findByText('Choose how the editable alias field is prefilled when you create a link.')
+		await fireEvent.update(view.getByLabelText('Alias strategy'), 'readable')
+		await vi.waitFor(() => expect(apiMock.updateUserSettings).toHaveBeenCalled(), { timeout: 1500 })
+
+		expect(apiMock.updateUserSettings).toHaveBeenCalledWith(expect.objectContaining({
+			aliasStrategy: 'readable',
+			collisionStrategy: 'random',
+		}))
+		expect(view.queryByRole('button', { name: 'Save' })).toBeNull()
+		expect(view.emitted('saved')).toHaveLength(1)
+	})
+
+	it('saves a personal URL domain explicitly', async () => {
 		apiMock.getUserSettings.mockResolvedValue({ ...response })
 		apiMock.updateUserSettings.mockImplementation(async value => ({ ...response, ...value, shortUrlTemplate: 'https://go.example/{alias}' }))
-		const view = render(AliasUrlSettings, { global })
-		await view.findByText('Automatic aliases')
-		await fireEvent.update(view.getByLabelText('Alias strategy'), 'readable')
+		const view = render(AliasUrlSettings, { props: { section: 'url' }, global })
+		await view.findByText('Keep the global URL, append the alias to your own domain, or define an expert transformation.')
 		await fireEvent.update(view.getByLabelText('URL format'), 'simple')
 		await fireEvent.update(view.getByLabelText('Short-link domain or base URL'), 'https://go.example')
 		await fireEvent.click(view.getByRole('button', { name: 'Save' }))
 
 		expect(apiMock.updateUserSettings).toHaveBeenCalledWith(expect.objectContaining({
-			aliasStrategy: 'readable',
-			collisionStrategy: 'random',
 			urlMode: 'simple',
 			baseUrl: 'https://go.example',
 		}))

@@ -4,8 +4,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-30
+
 ### Changed
 
+- Added automatic URL metadata previews with editable titles, protected thumbnail proxying and restored alias prefilling in both creation flows.
+- Added rich selectable link cards, a responsive table/card switch and Files-style bulk actions including move/copy, tagging, export and QR ZIP download.
+- Unified folder and tag lists across creation and settings, including nested drag targets, insertion ghosts and compact selectable modes.
+- Split personal alias and sharing-URL preferences, with automatic alias saving and simple/template/regular-expression URL modes.
+- Added contextual statistics pages and dialogs with period filters, scoped metrics and top-five donut visualisations.
+- Renamed user-facing German tag terminology to "Schlagworte" throughout the app.
 - Added a dashboard with reusable quick creation, live alias availability feedback, and grouped advanced options.
 - Added a sticky Files-style content toolbar with switchable breadcrumbs, advanced search, grouped export/statistics/tag actions, and sortable table headings.
 - Moved the bookmarklet into the app navigation and added a guided, draggable bookmarklet dialog.

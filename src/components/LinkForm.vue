@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRef, watch } from 'vue'
 import { mdiInformationOutline, mdiLinkVariant, mdiRefresh } from '@mdi/js'
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -12,7 +12,11 @@ import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
 import { useAliasValidation } from '../composables/useAliasValidation'
+import { useLinkMetadataPreview } from '../composables/useLinkMetadataPreview'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
+import FolderTreeList from './FolderTreeList.vue'
+import LinkPreviewEditor from './LinkPreviewEditor.vue'
+import TagList from './TagList.vue'
 
 const props = withDefaults(defineProps<{
 	folders: Folder[]
@@ -24,6 +28,7 @@ const props = withDefaults(defineProps<{
 	prefillTitle?: string
 	prefillAlias?: string
 	prefillFolderId?: number | null
+	prefillTagIds?: number[]
 	link?: ShortLink
 	allowTitleFetch?: boolean
 }>(), {
@@ -34,6 +39,7 @@ const props = withDefaults(defineProps<{
 	prefillTitle: '',
 	prefillAlias: '',
 	prefillFolderId: null,
+	prefillTagIds: () => [],
 	link: undefined,
 	allowTitleFetch: false,
 })
@@ -44,7 +50,7 @@ const draft = reactive<LinkDraft>({
 	slug: props.link?.slug ?? props.prefillAlias,
 	description: props.link?.description ?? '',
 	folderId: props.link?.folderId ?? props.prefillFolderId,
-	tagIds: props.link?.tags.map(tag => tag.id) ?? [],
+	tagIds: props.link?.tags.map(tag => tag.id) ?? [...props.prefillTagIds],
 	active: props.link?.active ?? true,
 	favorite: props.link?.favorite ?? false,
 	accessMode: props.link?.accessMode ?? 'public',
@@ -58,8 +64,8 @@ const slug = computed({ get: () => draft.slug, set: value => { draft.slug = valu
 const alias = useAliasValidation(slug, props.link?.slug)
 const aliasEdited = ref(Boolean(props.link || props.prefillAlias))
 let aliasTimer: ReturnType<typeof setTimeout> | undefined
-const fetchingTitle = ref(false)
 const newTagName = ref('')
+const addingTag = ref(false)
 const availableTags = ref<Tag[]>([...props.tags])
 const limitClicks = ref(props.link?.clickLimit !== null && props.link?.clickLimit !== undefined)
 const accessModes: Array<{ value: AccessMode; label: string }> = [
@@ -84,6 +90,8 @@ const targetError = computed(() => {
 		return t('shortlinks', 'Enter a complete URL including its scheme.')
 	}
 })
+const targetValid = computed(() => !targetError.value)
+const metadata = useLinkMetadataPreview(toRef(draft, 'targetUrl'), toRef(draft, 'title'), targetValid, computed(() => props.allowTitleFetch))
 const shortUrlParts = computed(() => {
 	const template = props.shortUrlTemplate || `${location.origin}/apps/shortlinks/r/{alias}`
 	const [before, ...after] = template.split('{alias}')
@@ -99,7 +107,7 @@ onMounted(() => {
 })
 
 watch(() => [draft.title, draft.targetUrl], () => {
-	if (props.link || aliasEdited.value) return
+	if (props.link || aliasEdited.value || !targetValid.value) return
 	if (aliasTimer) clearTimeout(aliasTimer)
 	aliasTimer = setTimeout(() => alias.suggest({ title: draft.title, targetUrl: draft.targetUrl }), 450)
 })
@@ -123,19 +131,6 @@ function toggleTag(id: number) {
 	draft.tagIds = values.includes(id) ? values.filter(value => value !== id) : [...values, id]
 }
 
-async function fetchTitle() {
-	if (!draft.targetUrl) return
-	fetchingTitle.value = true
-	try {
-		const result = await api.fetchTitle(draft.targetUrl)
-		if (result.title) draft.title = result.title
-	} catch (error) {
-		showError(error instanceof Error ? error.message : String(error))
-	} finally {
-		fetchingTitle.value = false
-	}
-}
-
 async function createTag() {
 	const name = newTagName.value.trim()
 	if (!name) return
@@ -144,6 +139,7 @@ async function createTag() {
 		availableTags.value.push(tag)
 		draft.tagIds = [...draft.tagIds, tag.id]
 		newTagName.value = ''
+		addingTag.value = false
 	} catch (error) {
 		showError(error instanceof Error ? error.message : String(error))
 	}
@@ -188,15 +184,16 @@ function submit() {
 						<p>{{ t('shortlinks', 'Where should the short link lead, and how should it be named?') }}</p>
 					</div>
 				</div>
-				<div class="component-field">
-					<label for="shortlinks-target-url">{{ t('shortlinks', 'Destination URL') }}</label>
-					<NcTextField id="shortlinks-target-url"
-						v-model="draft.targetUrl"
-						type="url"
-						required
-						:helper-text="draft.targetUrl ? targetError : t('shortlinks', 'Paste the full address you want to shorten.')"
-						:error="Boolean(draft.targetUrl && targetError)" />
-				</div>
+				<LinkPreviewEditor :url="draft.targetUrl"
+					:title="draft.title"
+					:valid="targetValid"
+					:loading="metadata.loading.value"
+					:thumbnail-src="metadata.thumbnailSrc.value"
+					:url-error="targetError"
+					:url-hint="t('shortlinks', 'Paste the full address you want to shorten.')"
+					@update:url="draft.targetUrl = $event"
+					@update:title="draft.title = $event"
+					@title-edited="metadata.markTitleEdited" />
 				<div class="alias-field-row">
 					<div class="component-field">
 						<label for="shortlinks-alias">{{ t('shortlinks', 'Alias') }}</label>
@@ -250,46 +247,46 @@ function submit() {
 						<p>{{ t('shortlinks', 'Add context and keep your short links easy to find.') }}</p>
 					</div>
 				</div>
-				<div class="title-row">
-					<div class="component-field">
-						<label for="shortlinks-title">{{ t('shortlinks', 'Title') }}</label>
-						<NcTextField id="shortlinks-title" v-model="draft.title" />
-					</div>
-					<NcButton v-if="allowTitleFetch"
-						type="button"
-						:disabled="fetchingTitle || Boolean(targetError)"
-						@click="fetchTitle">
-						{{ t('shortlinks', 'Fetch title') }}
-					</NcButton>
-				</div>
 				<NcTextArea v-model="draft.description" :label="t('shortlinks', 'Description (optional)')" />
-				<div class="form-grid">
-					<label class="select-field">
-						<span>{{ t('shortlinks', 'Folder') }}</span>
-						<select v-model="draft.folderId"><option :value="null">{{ t('shortlinks', 'No folder') }}</option><option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option></select>
-					</label>
-					<NcCheckboxRadioSwitch v-model="draft.favorite" type="switch">
-						{{ t('shortlinks', 'Favorite') }}
-					</NcCheckboxRadioSwitch>
-				</div>
-				<fieldset class="tag-picker">
-					<legend>{{ t('shortlinks', 'Tags') }}</legend>
-					<div v-if="availableTags.length" class="tag-options">
-						<NcCheckboxRadioSwitch v-for="tag in availableTags"
-							:key="tag.id"
-							type="checkbox"
-							:model-value="draft.tagIds?.includes(tag.id)"
-							@update:model-value="toggleTag(tag.id)">
-							{{ tag.name }}
-						</NcCheckboxRadioSwitch>
-					</div>
-					<div class="inline-create">
-						<NcTextField v-model="newTagName" :label="t('shortlinks', 'Create tag')" />
-						<NcButton type="button" :disabled="!newTagName.trim()" @click="createTag">
-							{{ t('shortlinks', 'Add') }}
+				<NcCheckboxRadioSwitch v-model="draft.favorite" type="switch">
+					{{ t('shortlinks', 'Favorite') }}
+				</NcCheckboxRadioSwitch>
+				<div class="organization-grid">
+					<section>
+						<h3>{{ t('shortlinks', 'Folder') }}</h3><div class="organization-list">
+							<FolderTreeList :folders="folders"
+								mode="select"
+								allow-root
+								:selected-id="draft.folderId"
+								@select="draft.folderId = $event" />
+						</div>
+					</section>
+					<section>
+						<h3>{{ t('shortlinks', 'Tags') }}</h3><div class="organization-list">
+							<TagList v-if="availableTags.length"
+								:tags="availableTags"
+								mode="select"
+								:selected-ids="draft.tagIds"
+								@toggle="toggleTag($event.id)" /><p v-else class="empty-list">
+									{{ t('shortlinks', 'No tags yet') }}
+								</p>
+						</div>
+						<div v-if="addingTag" class="inline-create">
+							<NcTextField v-model="newTagName" :label="t('shortlinks', 'Tag name')" /><NcButton type="button"
+								variant="primary"
+								:disabled="!newTagName.trim()"
+								@click="createTag">
+								{{ t('shortlinks', 'Add') }}
+							</NcButton>
+						</div>
+						<NcButton v-else
+							type="button"
+							variant="tertiary"
+							@click="addingTag = true">
+							{{ t('shortlinks', 'New tag') }}
 						</NcButton>
-					</div>
-				</fieldset>
+					</section>
+				</div>
 			</section>
 
 			<hr>
@@ -390,8 +387,7 @@ function submit() {
 	border-block-start: 1px solid var(--color-border);
 }
 
-.alias-field-row,
-.title-row {
+.alias-field-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
@@ -408,7 +404,6 @@ function submit() {
 }
 
 .alias-actions,
-.tag-options,
 .inline-create {
 	display: flex;
 	align-items: center;
@@ -469,17 +464,15 @@ function submit() {
 	font-weight: normal;
 }
 
-.tag-picker {
-	display: grid;
-	gap: calc(var(--default-grid-baseline) * 2);
-	margin: 0;
-	padding: 0;
-	border: 0;
-}
+.organization-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--default-grid-baseline) * 4); }
 
-.tag-picker legend {
-	font-weight: 600;
-}
+.organization-grid > section { display: grid; align-content: start; gap: calc(var(--default-grid-baseline) * 2); min-inline-size: 0; }
+
+.organization-grid h3, .empty-list { margin: 0; }
+
+.organization-list { max-block-size: 310px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); }
+
+.empty-list { padding: calc(var(--default-grid-baseline) * 4); color: var(--color-text-maxcontrast); text-align: center; }
 
 .click-limit {
 	display: grid;
@@ -491,10 +484,10 @@ function submit() {
 	margin: 0;
 }
 
-@media (max-width: 620px) {
+@media (max-width: 900px) {
 	.form-grid,
 	.alias-field-row,
-	.title-row {
+	.organization-grid {
 		grid-template-columns: 1fr;
 	}
 

@@ -36,6 +36,7 @@ final class ToolsApiController extends AbstractApiOCSController {
 	 * @param list<int> $folderIds Folder identifiers for exporting a subtree
 	 * @param list<int> $tagIds Tag identifiers
 	 * @param string $tagMode Tag matching mode: and or or
+	 * @param list<int> $linkIds Exact link selection
 	 * @param string $search Search text
 	 * @param null|int $createdFrom Earliest creation timestamp
 	 * @param null|int $createdTo Latest creation timestamp
@@ -45,8 +46,8 @@ final class ToolsApiController extends AbstractApiOCSController {
 	 * 200: Export result
 	 */
 	#[NoAdminRequired]
-	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $folderIds = [], array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null): DataResponse {
-		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'folderIds' => $folderIds, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active]));
+	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $folderIds = [], array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null, array $linkIds = []): DataResponse {
+		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'folderIds' => $folderIds, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active, 'linkIds' => $linkIds]));
 	}
 	/**
 	 * Import links from bounded JSON or CSV content
@@ -91,6 +92,23 @@ final class ToolsApiController extends AbstractApiOCSController {
 		return $this->respond(function (): array {
 			$payload = $this->payload(['targetUrl']);
 			return ['title' => $this->titles->fetch((string)($payload['targetUrl'] ?? ''))];
+		});
+	}
+
+	/**
+	 * Fetch privacy-safe preview metadata for a remote page
+	 *
+	 * @return DataResponse<Http::STATUS_OK, array<string, mixed>, array{}>
+	 *
+	 * 200: Page metadata
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	public function metadata(): DataResponse {
+		return $this->respond(function (): array {
+			$payload = $this->payload(['targetUrl']);
+			$metadata = $this->titles->fetchMetadata((string)($payload['targetUrl'] ?? ''));
+			return ['title' => $metadata['title'], 'hasThumbnail' => $metadata['imageUrl'] !== null];
 		});
 	}
 }

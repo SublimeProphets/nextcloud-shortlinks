@@ -111,5 +111,6 @@ export function useShortlinks() {
 		},
 		async setListOptions(options: { sort?: string; direction?: 'ASC' | 'DESC'; tagMode?: 'and' | 'or' }) { Object.assign(state, options); state.page = 1; await refresh() },
 		toggleSelected(id: number) { state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id) },
+		setSelected(ids: number[]) { state.selected.clear(); ids.forEach(id => state.selected.add(id)) },
 	}
 }

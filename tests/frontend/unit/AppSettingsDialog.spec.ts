@@ -37,6 +37,7 @@ const global = {
 		FolderForm: true,
 		TagForm: true,
 		AliasUrlSettings: true,
+		BookmarkletGuide: true,
 	},
 }
 

@@ -82,6 +82,120 @@ final class StatsMapper {
 		];
 	}
 
+	/** @param list<int> $linkIds @return array<string,mixed> */
+	public function overviewForLinks(array $linkIds, int $from, int $to, int $now): array {
+		$linkIds = array_slice(array_unique(array_filter(array_map('intval', $linkIds), static fn (int $id): bool => $id > 0)), 0, 5000);
+		if ($linkIds === []) {
+			return [
+				'totalLinks' => 0,
+				'activeLinks' => 0,
+				'totalClicks' => 0,
+				'uniqueVisitors' => 0,
+				'clicksToday' => 0,
+				'clicks7Days' => 0,
+				'clicks30Days' => 0,
+				'periodClicks' => 0,
+				'topLinks' => [],
+				'leastUsedLinks' => [],
+				'newestLinks' => [],
+				'dimensions' => array_fill_keys(['referrer', 'country', 'region', 'browser', 'os', 'device', 'authentication', 'bot'], []),
+			];
+		}
+		$summary = $this->db->getQueryBuilder();
+		$summary->selectAlias($summary->func()->sum('click_count'), 'total_clicks')
+			->addSelect($summary->func()->count('id', 'total_links'))
+			->from('shortlinks_links')
+			->where($summary->expr()->in('id', $summary->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)));
+		$row = $summary->executeQuery()->fetch() ?: [];
+		$active = $this->db->getQueryBuilder();
+		$active->select($active->func()->count('id', 'count'))->from('shortlinks_links')
+			->where($active->expr()->in('id', $active->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($active->expr()->eq('is_active', $active->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
+		$dimensions = [];
+		foreach (['referrer', 'country', 'region', 'browser', 'os', 'device', 'authentication', 'bot'] as $dimension) {
+			$dimensions[$dimension] = $this->topDimensionForLinks($linkIds, $dimension, $from, $to);
+		}
+		return [
+			'totalLinks' => (int)($row['total_links'] ?? 0),
+			'activeLinks' => (int)$active->executeQuery()->fetchOne(),
+			'totalClicks' => (int)($row['total_clicks'] ?? 0),
+			'uniqueVisitors' => $this->uniqueVisitorsForLinks($linkIds, $from, $to),
+			'clicksToday' => $this->countClicksForLinks($linkIds, $now - ($now % 86400), $now),
+			'clicks7Days' => $this->countClicksForLinks($linkIds, $now - 7 * 86400, $now),
+			'clicks30Days' => $this->countClicksForLinks($linkIds, $now - 30 * 86400, $now),
+			'periodClicks' => $this->countClicksForLinks($linkIds, $from, $to),
+			'topLinks' => $this->rankedLinksForIds($linkIds, 'DESC'),
+			'leastUsedLinks' => $this->rankedLinksForIds($linkIds, 'ASC'),
+			'newestLinks' => $this->newestLinksForIds($linkIds),
+			'dimensions' => $dimensions,
+		];
+	}
+
+	/** @param list<int> $linkIds */
+	private function uniqueVisitorsForLinks(array $linkIds, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('visitor_hash')->from('shortlinks_clicks')
+			->where($qb->expr()->in('link_id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('visitor_hash'))
+			->andWhere($qb->expr()->neq('visitor_hash', $qb->createNamedParameter('')));
+		$result = $qb->executeQuery();
+		$count = 0;
+		while ($result->fetchOne() !== false) {
+			++$count;
+		}
+		$result->closeCursor();
+		return $count;
+	}
+
+	/** @param list<int> $linkIds */
+	private function countClicksForLinks(array $linkIds, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id', 'count'))->from('shortlinks_clicks')
+			->where($qb->expr()->in('link_id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)));
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+
+	/** @param list<int> $linkIds @return list<array{value:string,clicks:int}> */
+	private function topDimensionForLinks(array $linkIds, string $dimension, int $from, int $to): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->sum('clicks'), 'clicks')->addSelect('dimension_value')
+			->from('shortlinks_daily_stats')
+			->where($qb->expr()->in('link_id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->eq('dimension', $qb->createNamedParameter($dimension)))
+			->andWhere($qb->expr()->gte('day', $qb->createNamedParameter(gmdate('Y-m-d', max(0, $from)))))
+			->andWhere($qb->expr()->lte('day', $qb->createNamedParameter(gmdate('Y-m-d', max($from, $to)))))
+			->groupBy('dimension_value')->orderBy('clicks', 'DESC')->setMaxResults(100);
+		$result = $qb->executeQuery();
+		$rows = [];
+		while (($row = $result->fetch()) !== false) {
+			$rows[] = ['value' => (string)$row['dimension_value'], 'clicks' => (int)$row['clicks']];
+		}
+		$result->closeCursor();
+		return $rows;
+	}
+
+	/** @param list<int> $linkIds @return list<array<string,mixed>> */
+	private function rankedLinksForIds(array $linkIds, string $direction): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'slug', 'title', 'click_count')->from('shortlinks_links')
+			->where($qb->expr()->in('id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->orderBy('click_count', $direction)->addOrderBy('updated_at', 'DESC')->setMaxResults(10);
+		return $this->linkRows($qb);
+	}
+
+	/** @param list<int> $linkIds @return list<array<string,mixed>> */
+	private function newestLinksForIds(array $linkIds): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'slug', 'title', 'click_count')->from('shortlinks_links')
+			->where($qb->expr()->in('id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->orderBy('created_at', 'DESC')->setMaxResults(10);
+		return $this->linkRows($qb);
+	}
+
 	private function uniqueVisitors(string $ownerUid, int $from, int $to): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->selectDistinct('c.visitor_hash')->from('shortlinks_clicks', 'c')
