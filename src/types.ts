@@ -45,6 +45,19 @@ export interface LinkDraft {
 
 export type PageAccessMode = 'private' | 'public' | 'password' | 'restricted'
 export type PageLayout = 'cards' | 'spaced' | 'compact' | 'tiles'
+export type PageGrouping = 'none' | 'folder' | 'tag'
+export type PageThemePreset = 'nextcloud' | 'neutral' | 'modern' | 'editorial'
+export type PageHeaderAlignment = 'center' | 'left'
+export interface PageTheme {
+	preset: PageThemePreset; primary: string; background: string; surface: string; text: string
+	font: string; baseSize: number; scale: number
+}
+export interface PageHeaderOptions {
+	brand: boolean; mark: boolean; title: boolean; lead: boolean; owner: boolean; compact: boolean; alignment: PageHeaderAlignment
+}
+export interface PageFooterOptions {
+	enabled: boolean; brand: boolean; updated: boolean; attribution: string; linkIds: number[]
+}
 export interface PageContact { key: string; name: string; emails: string[]; phones: string[]; organization: string }
 export interface PageFile {
 	path: string; name: string; mime: string; size: number; modifiedAt: number
@@ -54,15 +67,15 @@ export interface LinkPage {
 	id: number; ownerUid: string; slug: string; title: string; lead: string | null; accessMode: PageAccessMode
 	passwordProtected: boolean; startsAt: number | null; expiresAt: number | null; folderIds: number[]; tagIds: number[]; linkIds: number[]
 	filePaths: string[]; contacts: PageContact[]
-	userIds: string[]; groupIds: string[]; layout: PageLayout; grouping: 'none' | 'folder' | 'tag'; visibleFields: string[]
-	theme: Record<string, string>; header: Record<string, boolean>; footer: Record<string, boolean>; active: boolean
+	userIds: string[]; groupIds: string[]; layout: PageLayout; grouping: PageGrouping; visibleFields: string[]
+	theme: PageTheme; header: PageHeaderOptions; footer: PageFooterOptions; active: boolean
 	createdAt: number; updatedAt: number; deletedAt: number | null; version: number; publicUrl: string; canEdit: boolean
 }
 export interface LinkPageDraft {
 	slug: string; title: string; lead: string; accessMode: PageAccessMode; password: string; startsAt: number | null; expiresAt: number | null
 	folderIds: number[]; tagIds: number[]; linkIds: number[]; filePaths: string[]; contacts: PageContact[]; userIds: string[]; groupIds: string[]; layout: PageLayout
-	grouping: 'none' | 'folder' | 'tag'; visibleFields: string[]; theme: Record<string, string>; header: Record<string, boolean>
-	footer: Record<string, boolean>; active: boolean; version?: number
+	grouping: PageGrouping; visibleFields: string[]; theme: PageTheme; header: PageHeaderOptions
+	footer: PageFooterOptions; active: boolean; version?: number
 }
 
 export interface UserSettings {

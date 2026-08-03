@@ -26,6 +26,6 @@ Run Playwright against a seeded instance with `NEXTCLOUD_URL=http://localhost:80
 
 Run the redirect smoke test with `k6 run -e BASE_URL=http://localhost:8080 -e SLUG=<known-alias> tests/performance/redirect-smoke.js`. Record CPU/RAM, database, Nextcloud/PHP version, virtualisation and event/statistics mode beside results. Thresholds are smoke guards, not production throughput claims.
 
-Database checks use the Compose variants and should cover a fresh install, `occ maintenance:repair`, link creation, guarded concurrent clicks, aggregation and cleanup. Run `occ app:check-code shortlinks` in both supported Nextcloud versions. CI repeats static, unit, build and OpenAPI reproducibility checks, runs the Nextcloud 34/35 plus MariaDB/PostgreSQL/SQLite container matrix, and executes a Chromium lifecycle smoke test.
+Database checks use the Compose variants and should cover a fresh install, `occ maintenance:repair`, link creation, guarded concurrent clicks, aggregation and cleanup. Run `occ integrity:check-app shortlinks` for signed release artifacts in both supported Nextcloud versions. CI repeats static, unit, build and OpenAPI reproducibility checks, runs the Nextcloud 34/35 plus MariaDB/PostgreSQL/SQLite container matrix, and executes a Chromium lifecycle smoke test.
 
 Coverage is generated with `vendor-bin/phpunit/vendor/bin/phpunit --coverage-clover coverage/php.xml` and `pnpm vitest run --coverage`; a coverage driver must be installed for PHP. Coverage is evidence, not a substitute for database and browser tests.

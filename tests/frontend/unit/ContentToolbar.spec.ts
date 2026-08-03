@@ -38,7 +38,7 @@ const props = {
 
 const global = {
 	stubs: {
-		CreateMenu: { emits: ['link', 'folder', 'tag'], template: '<button @click="$emit(\'link\')">+ New</button>' },
+		CreateMenu: { emits: ['link', 'folder', 'tag'], template: '<button @click="$emit(\'link\')">New</button>' },
 		NcActionButton: { props: ['name'], emits: ['click'], template: '<button @click="$emit(\'click\')">{{name}}</button>' },
 		NcActions: { props: ['menuName'], template: '<div><button>{{menuName}}</button><slot name="icon"/><slot/></div>' },
 		NcBreadcrumb: { props: ['name'], template: '<div><button>{{name}}</button><slot/></div>' },
@@ -78,7 +78,7 @@ describe('ContentToolbar', () => {
 		const view = render(ContentToolbar, { props, global })
 		const buttons = view.getAllByRole('button')
 		expect(buttons[0]?.getAttribute('aria-label')).toBe('Close navigation')
-		expect(buttons[1]?.textContent).toContain('+ New')
+		expect(buttons[1]?.textContent).toContain('New')
 		await fireEvent.click(buttons[0]!)
 		expect(eventBusMock.emit).toHaveBeenCalledWith('toggle-navigation', { open: false })
 	})

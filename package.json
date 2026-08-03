@@ -1,6 +1,6 @@
 {
   "name": "shortlinks",
-  "version": "1.6.0",
+  "version": "1.7.6",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "license": "AGPL-3.0-or-later",
@@ -21,6 +21,8 @@
     "test:e2e": "playwright test",
     "test:security": "pnpm audit --audit-level=high",
     "deps:update": "pnpm update && pnpm audit --audit-level=high",
+    "demo:seed": "docker compose exec -T --user www-data nextcloud34 php occ shortlinks:seed --user=alice --append",
+    "demo:seed:clean": "docker compose exec -T --user www-data nextcloud34 php occ shortlinks:seed --user=alice --clean",
     "test:all": "pnpm lint && pnpm stylelint && pnpm typecheck && pnpm translations:check && pnpm test && pnpm build"
   },
   "browserslist": [

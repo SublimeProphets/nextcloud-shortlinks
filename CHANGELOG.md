@@ -4,6 +4,57 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.7.6] - 2026-08-03
+
+### Added
+
+- Added an idempotent demo workspace seed with clean/append modes, nested folders, workflow tags, 36 varied links, plausible analytics, and three designed use-case Pages.
+
+### Fixed
+
+- Kept grouped Page headings readable when a dark custom theme is used.
+
+## [1.7.4] - 2026-08-03
+
+### Fixed
+
+- Reset Nextcloud's global fixed-footer rule for the Page-specific footer, keeping attribution and selected links inside the themed Page.
+
+## [1.7.3] - 2026-08-03
+
+### Fixed
+
+- Contained overflowing published Page content in its own scroll area so the app footer can no longer overlap Nextcloud's guest footer.
+
+## [1.7.2] - 2026-08-03
+
+### Fixed
+
+- Made published Pages fill Nextcloud's complete public content area without extending underneath the fixed guest footer.
+
+## [1.7.1] - 2026-08-03
+
+### Fixed
+
+- Kept Page theme cards exposed as native buttons to assistive technology while retaining their horizontal card presentation.
+
+## [1.7.0] - 2026-08-03
+
+### Added
+
+- Added four Page themes, twenty local font choices, base-size and overall scaling controls, expanded header composition, editable attribution and centered footer links.
+
+### Changed
+
+- Replaced Page grouping selects with accessible illustrated radio choices and added sticky search to both individual-link pickers.
+- Split the Page header and footer configuration into focused sections and brought theme-specific styling to both live previews and published Pages.
+
+## [1.6.1] - 2026-08-03
+
+### Fixed
+
+- Added the missing confirmation action to the native multi-file picker and clear empty-result feedback to contact search.
+
 ## [1.6.0] - 2026-08-03
 
 ### Added

@@ -51,7 +51,7 @@ final class PublicPagesController extends Controller {
 		}
 	}
 
-	/** @param array{page:array<string,mixed>,links:list<array<string,mixed>>,files:list<array<string,mixed>>,contacts:list<array<string,mixed>>,owner:string} $data */
+	/** @param array{page:array<string,mixed>,links:list<array<string,mixed>>,footerLinks:list<array<string,mixed>>,files:list<array<string,mixed>>,contacts:list<array<string,mixed>>,owner:string} $data */
 	private function page(array $data): PublicTemplateResponse {
 		$response = new PublicTemplateResponse('shortlinks', 'link-page', $data, Http::STATUS_OK, ['Cache-Control' => 'no-store', 'Referrer-Policy' => 'strict-origin-when-cross-origin']);
 		$response->setHeaderTitle((string)$data['page']['title']);

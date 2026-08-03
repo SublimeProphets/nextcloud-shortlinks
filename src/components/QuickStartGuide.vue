@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { mdiCheck, mdiChevronLeft, mdiChevronRight, mdiClose, mdiFolderOutline, mdiIdentifier, mdiOpenInNew, mdiShareVariantOutline, mdiTagOutline } from '@mdi/js'
+import { mdiCheck, mdiChevronLeft, mdiChevronRight, mdiClose, mdiIdentifier, mdiOpenInNew, mdiPlus, mdiShareVariantOutline, mdiTagOutline } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { api } from '../api/client'
-import type { Folder, Tag, UserSettings } from '../types'
+import { folderIconPath } from '../folderIcons'
+import type { Folder, FolderIcon, Tag, UserSettings } from '../types'
 import BookmarkletGuide from './BookmarkletGuide.vue'
+import FolderForm from './FolderForm.vue'
 
 const props = defineProps<{ folders: Folder[]; tags: Tag[]; shortUrlTemplate?: string | null }>()
 const emit = defineEmits<{ changed: []; saved: [settings: UserSettings]; hidden: [] }>()
@@ -17,8 +19,9 @@ const busy = ref(false)
 const aliasChoice = ref<'shortest' | 'readable' | 'random'>('shortest')
 const urlChoice = ref<'nextcloud' | 'custom'>('nextcloud')
 const customUrl = ref('')
-const selectedFolder = ref<number | null>(null)
-const newFolder = ref('')
+const showFolderCreate = ref(false)
+const createdFolders = ref<Folder[]>([])
+const selectedFolderExamples = ref<string[]>(props.folders.some(folder => folder.name.localeCompare('Projects', undefined, { sensitivity: 'accent' }) === 0) ? [] : ['Projects'])
 const selectedExamples = ref<string[]>(['Important'])
 const newTag = ref('')
 
@@ -30,15 +33,26 @@ const aliasOptions = [
 	{ id: 'readable', title: 'Based on destination', description: 'Guess a memorable alias from the page title or URL.' },
 	{ id: 'random', title: 'Random and anonymous', description: 'Use an unrelated random alias that reveals no destination context.' },
 ] as const
+const folderExamples: Array<{ name: string; description: string; icon: FolderIcon }> = [
+	{ name: 'Projects', description: 'Keep active projects and their most useful links together.', icon: 'projects' },
+	{ name: 'Team', description: 'A shared starting point for tools, meetings, and collaboration.', icon: 'work' },
+	{ name: 'Personal', description: 'Collect private resources and everyday shortcuts.', icon: 'personal' },
+	{ name: 'Read later', description: 'Save articles and resources you want to revisit.', icon: 'archive' },
+]
 const tagExamples = [
 	{ name: 'Important', description: 'Things that should stay easy to find.', color: '#e9322d' },
 	{ name: 'Campaign', description: 'Shareable links for campaigns and launches.', color: '#8c42ab' },
 	{ name: 'Team', description: 'Frequently used links for collaboration.', color: '#0082c9' },
 ]
+const availableFolders = computed(() => {
+	const folders = new Map<number, Folder>()
+	for (const folder of [...props.folders, ...createdFolders.value]) folders.set(folder.id, folder)
+	return [...folders.values()]
+})
+const suggestedFolders = computed(() => folderExamples.filter(example => !availableFolders.value.some(folder => folder.name.localeCompare(example.name, undefined, { sensitivity: 'accent' }) === 0)))
 const nextDisabled = computed(() => step.value === 1 && urlChoice.value === 'custom' && !/^https?:\/\//i.test(customUrl.value.trim()))
 
 onMounted(async () => {
-	selectedFolder.value = props.folders[0]?.id ?? null
 	try {
 		const settings = await api.getUserSettings()
 		if (settings.aliasStrategy === 'readable' || settings.aliasStrategy === 'random' || settings.aliasStrategy === 'shortest') aliasChoice.value = settings.aliasStrategy
@@ -63,11 +77,17 @@ async function next() {
 			emit('saved', await api.updateUserSettings({ aliasStrategy: aliasChoice.value }))
 		} else if (step.value === 1) {
 			emit('saved', await api.updateUserSettings(urlChoice.value === 'nextcloud' ? { urlMode: 'inherit' } : { urlMode: 'simple', baseUrl: customUrl.value.trim() }))
-		} else if (step.value === 2 && newFolder.value.trim()) {
-			const created = await api.createFolder(newFolder.value.trim())
-			selectedFolder.value = created.id
-			newFolder.value = ''
-			emit('changed')
+		} else if (step.value === 2) {
+			let changed = false
+			for (const name of selectedFolderExamples.value) {
+				if (availableFolders.value.some(folder => folder.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)) continue
+				const example = folderExamples.find(folder => folder.name === name)
+				if (!example) continue
+				createdFolders.value.push(await api.createFolder(example.name, null, example.icon))
+				changed = true
+			}
+			selectedFolderExamples.value = []
+			if (changed) emit('changed')
 		} else if (step.value === 3) {
 			const names = [...selectedExamples.value, ...(newTag.value.trim() ? [newTag.value.trim()] : [])]
 			for (const name of names) {
@@ -86,6 +106,28 @@ async function next() {
 
 function toggleExample(name: string) {
 	selectedExamples.value = selectedExamples.value.includes(name) ? selectedExamples.value.filter(item => item !== name) : [...selectedExamples.value, name]
+}
+
+function toggleFolderExample(name: string) {
+	selectedFolderExamples.value = selectedFolderExamples.value.includes(name)
+		? selectedFolderExamples.value.filter(item => item !== name)
+		: [...selectedFolderExamples.value, name]
+}
+
+async function createFolder(value: { name: string; parentId: number | null; icon: FolderIcon }) {
+	busy.value = true
+	try {
+		const created = await api.createFolder(value.name, value.parentId, value.icon)
+		createdFolders.value.push(created)
+		selectedFolderExamples.value = selectedFolderExamples.value.filter(name => name.localeCompare(created.name, undefined, { sensitivity: 'accent' }) !== 0)
+		showFolderCreate.value = false
+		emit('changed')
+		showSuccess(t('shortlinks', 'Folder created. You can add another one.'))
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	} finally {
+		busy.value = false
+	}
 }
 </script>
 
@@ -138,16 +180,33 @@ function toggleExample(name: string) {
 				:label="t('shortlinks', 'Custom base URL')"
 				:helper-text="t('shortlinks', 'Example: https://go.example')" />
 		</div>
-		<div v-else-if="step === 2" class="option-grid">
-			<button v-for="folder in folders"
-				:key="folder.id"
-				type="button"
-				class="choice-card choice-card--compact"
-				:class="{ selected: selectedFolder === folder.id }"
-				@click="selectedFolder = folder.id">
-				<NcIconSvgWrapper :path="mdiFolderOutline" /><span><strong>{{ folder.name }}</strong><small>{{ t('shortlinks', '{count} links', { count: folder.count }) }}</small></span><NcIconSvgWrapper v-if="selectedFolder === folder.id" :path="mdiCheck" />
-			</button>
-			<NcTextField v-model="newFolder" :label="t('shortlinks', 'Create another folder')" :helper-text="t('shortlinks', 'It will be added when you continue.')" />
+		<div v-else-if="step === 2" class="folder-step">
+			<div class="quick-start__intro">
+				<h3>{{ t('shortlinks', 'Build a useful starting structure') }}</h3>
+				<p>{{ t('shortlinks', 'Select as many suggestions as you like. They will be created when you continue, while existing folders stay ready to use.') }}</p>
+			</div>
+			<div class="option-grid">
+				<div v-for="folder in availableFolders"
+					:key="folder.id"
+					class="choice-card choice-card--compact choice-card--available">
+					<NcIconSvgWrapper :path="folderIconPath(folder.icon)" /><span><strong>{{ folder.name }}</strong><small>{{ folder.count === 1 ? t('shortlinks', 'Already available · 1 link') : t('shortlinks', 'Already available · {count} links', { count: folder.count }) }}</small></span><NcIconSvgWrapper class="available-check" :path="mdiCheck" />
+				</div>
+				<button v-for="folder in suggestedFolders"
+					:key="folder.name"
+					type="button"
+					class="choice-card"
+					:class="{ selected: selectedFolderExamples.includes(folder.name) }"
+					:aria-pressed="selectedFolderExamples.includes(folder.name)"
+					@click="toggleFolderExample(folder.name)">
+					<NcIconSvgWrapper :path="folderIconPath(folder.icon)" /><span><strong>{{ t('shortlinks', folder.name) }}</strong><small>{{ t('shortlinks', folder.description) }}</small></span><NcIconSvgWrapper v-if="selectedFolderExamples.includes(folder.name)" :path="mdiCheck" />
+				</button>
+				<button type="button" class="choice-card choice-card--create" @click="showFolderCreate = true">
+					<NcIconSvgWrapper :path="mdiPlus" /><span><strong>{{ t('shortlinks', 'Create a custom folder') }}</strong><small>{{ t('shortlinks', 'Choose its name, icon, and parent folder in the full folder dialog.') }}</small></span>
+				</button>
+			</div>
+			<p v-if="selectedFolderExamples.length" class="folder-step__selection" role="status">
+				{{ selectedFolderExamples.length === 1 ? t('shortlinks', '1 folder selected for creation') : t('shortlinks', '{count} folders selected for creation', { count: selectedFolderExamples.length }) }}
+			</p>
 		</div>
 		<div v-else-if="step === 3" class="option-grid">
 			<button v-for="tag in tagExamples"
@@ -184,6 +243,10 @@ function toggleExample(name: string) {
 				</template>
 			</NcButton>
 		</footer>
+		<FolderForm v-if="showFolderCreate"
+			:folders="availableFolders"
+			@close="showFolderCreate = false"
+			@save="createFolder" />
 	</section>
 </template>
 
@@ -208,11 +271,25 @@ function toggleExample(name: string) {
 
 .option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: calc(var(--default-grid-baseline) * 3); }
 
+.folder-step, .quick-start__intro { display: grid; gap: calc(var(--default-grid-baseline) * 2); }
+
+.quick-start__intro h3, .quick-start__intro p, .folder-step__selection { margin: 0; }
+
+.quick-start__intro p, .folder-step__selection { color: var(--color-text-maxcontrast); }
+
 .choice-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: calc(var(--default-grid-baseline) * 2); align-items: start; min-block-size: 100px; padding: calc(var(--default-grid-baseline) * 3); color: var(--color-main-text); text-align: start; border: 2px solid var(--color-border); border-radius: var(--border-radius-large); background: var(--color-main-background); }
 
 .choice-card:hover { background: var(--color-background-hover); }
 
 .choice-card.selected { border-color: var(--color-primary-element); box-shadow: 0 0 0 1px var(--color-primary-element); }
+
+.choice-card--available { border-style: dashed; }
+
+.available-check { color: var(--color-success); }
+
+.choice-card--create { border-color: var(--color-primary-element); background: var(--color-primary-element-light); }
+
+.choice-card--create:hover { background: var(--color-primary-element-light-hover); }
 
 .choice-card span { display: grid; gap: var(--default-grid-baseline); }
 

@@ -1,4 +1,4 @@
-.PHONY: setup up install seed test package down reset logs nextcloud35 postgres sqlite
+.PHONY: setup up install seed seed-clean test package down reset logs nextcloud35 postgres sqlite
 
 setup:
 	composer install
@@ -13,7 +13,10 @@ install:
 	bash ./scripts/install.sh nextcloud34
 
 seed:
-	docker compose exec -T -u www-data nextcloud34 php occ shortlinks:seed --user=alice
+	docker compose exec -T -u www-data nextcloud34 php occ shortlinks:seed --user=alice --append
+
+seed-clean:
+	docker compose exec -T -u www-data nextcloud34 php occ shortlinks:seed --user=alice --clean
 
 test:
 	composer test:all

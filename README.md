@@ -42,7 +42,7 @@ Run `docker compose --profile nextcloud35 up -d nextcloud35`, `--profile postgre
 - Exact, case-sensitive custom aliases plus random, sequential Base36/Base62 and readable title/URL-derived generators with configurable random or numbered collision suffixes.
 - Global and per-user sharing URLs using a simple base domain, `{alias}`/`{user}` templates or bounded regular-expression replacements.
 - Link lifecycle: create, edit with optimistic concurrency, clone, favorite, activate, bulk edit, trash, restore and permanent deletion.
-- Custom thumbnails from Nextcloud Files, decorative image/video media, themed link cards and shareable Pages with live design previews.
+- Custom thumbnails from Nextcloud Files, decorative image/video media, themed link cards and shareable Pages with four presets, typography/scaling controls and live design previews.
 - Page collections sourced from folders, tags or selected links, with responsive layouts and private/public/password/restricted access.
 - Nested per-user folders, tags, read/edit shares to users or groups, keyboard-operable navigation, responsive UI and dark-mode-compatible styling.
 - Public, authenticated, restricted, password-protected and disabled access modes; start/expiry times; atomic click limits; selectable 301/302/307/308 redirects.
@@ -64,8 +64,17 @@ Only signed-in Nextcloud users can manage links. Redirects are public only when 
 composer test:all
 pnpm test:all
 docker compose exec -u www-data nextcloud34 php occ shortlinks:health
-docker compose exec -u www-data nextcloud34 php occ shortlinks:seed --user=alice
-docker compose exec -u www-data nextcloud34 php occ app:check-code shortlinks
+docker compose exec -u www-data nextcloud34 php occ shortlinks:seed --user=alice --append
+docker compose exec -u www-data nextcloud34 php occ shortlinks:seed --user=alice --clean
+```
+
+The demo seed creates four root folders with five subfolders, eight workflow tags, 36 varied links with plausible analytics, and one designed Page for a tech startup, music producer, and design agency. Append mode is idempotent and preserves unrelated content. Clean mode first removes all Shortlinks content owned by the selected user, but never data belonging to another user. Password-protected demo content uses `shortlinks-demo`.
+
+For the dedicated local development account `alice`, the same modes are available as package scripts:
+
+```bash
+pnpm demo:seed
+pnpm demo:seed:clean
 ```
 
 See [development](docs/development.md), [testing](docs/testing.md), [architecture](docs/architecture.md), [user guide](docs/user-guide.md), [admin guide](docs/admin-guide.md), [privacy](docs/privacy.md), [threat model](docs/threat-model.md), [API](docs/api.md), [dependency and licence overview](docs/dependencies.md), and the [release checklist](docs/release.md).
@@ -78,4 +87,4 @@ For an isolated release artifact, run `make package` or `bash scripts/package.sh
 
 ## Project status and release inputs
 
-Version `1.6.0` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.
+Version `1.7.6` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.

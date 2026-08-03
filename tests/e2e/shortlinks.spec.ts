@@ -12,7 +12,7 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 async function chooseCreateAction(page: import('@playwright/test').Page, name: 'New short link' | 'New folder' | 'New tag') {
-	const trigger = page.getByRole('button', { name: /\+ new/i })
+	const trigger = page.getByRole('button', { name: /\new/i })
 	try {
 		await trigger.click({ timeout: 3_000 })
 	} catch {

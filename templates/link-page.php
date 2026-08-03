@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-/** @var array{page:array<string,mixed>,links:list<array<string,mixed>>,files:list<array<string,mixed>>,contacts:list<array<string,mixed>>,owner:string} $_ */
+/** @var array{page:array<string,mixed>,links:list<array<string,mixed>>,footerLinks:list<array<string,mixed>>,files:list<array<string,mixed>>,contacts:list<array<string,mixed>>,owner:string} $_ */
 $page = $_['page'];
 $links = $_['links'];
+$footerLinks = $_['footerLinks'];
 $files = $_['files'];
 $contacts = $_['contacts'];
 $fields = array_flip((array)$page['visibleFields']);
@@ -16,6 +17,20 @@ $color = preg_match('/^#[0-9a-fA-F]{6}$/D', $candidateColor) === 1 ? $candidateC
 $background = preg_match('/^#[0-9a-fA-F]{6}$/D', (string)($theme['background'] ?? '')) === 1 ? (string)$theme['background'] : '#f5f6f8';
 $surface = preg_match('/^#[0-9a-fA-F]{6}$/D', (string)($theme['surface'] ?? '')) === 1 ? (string)$theme['surface'] : '#ffffff';
 $text = preg_match('/^#[0-9a-fA-F]{6}$/D', (string)($theme['text'] ?? '')) === 1 ? (string)$theme['text'] : '#222222';
+$preset = in_array($theme['preset'] ?? null, ['nextcloud', 'neutral', 'modern', 'editorial'], true) ? (string)$theme['preset'] : 'nextcloud';
+$fontStacks = [
+	'system' => 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+	'inter' => 'Inter, system-ui, sans-serif', 'segoe' => '"Segoe UI", system-ui, sans-serif', 'helvetica' => 'Helvetica, Arial, sans-serif',
+	'arial' => 'Arial, sans-serif', 'verdana' => 'Verdana, sans-serif', 'tahoma' => 'Tahoma, sans-serif', 'trebuchet' => '"Trebuchet MS", sans-serif',
+	'roboto' => 'Roboto, Arial, sans-serif', 'open-sans' => '"Open Sans", Arial, sans-serif', 'lato' => 'Lato, Arial, sans-serif',
+	'montserrat' => 'Montserrat, Arial, sans-serif', 'poppins' => 'Poppins, Arial, sans-serif', 'georgia' => 'Georgia, serif',
+	'times' => '"Times New Roman", serif', 'palatino' => 'Palatino, "Palatino Linotype", serif', 'garamond' => 'Garamond, serif',
+	'courier' => '"Courier New", monospace', 'consolas' => 'Consolas, monospace', 'monospace' => 'ui-monospace, SFMono-Regular, Consolas, monospace',
+];
+$font = $fontStacks[(string)($theme['font'] ?? 'system')] ?? $fontStacks['system'];
+$baseSize = max(14, min(20, (int)($theme['baseSize'] ?? 16)));
+$scale = max(85, min(125, (int)($theme['scale'] ?? 100))) / 100;
+$headerAlignment = in_array($header['alignment'] ?? null, ['center', 'left'], true) ? (string)$header['alignment'] : 'center';
 $formatSize = static function (int $bytes) use ($l): string {
 	if ($bytes < 1024) {
 		return $l->n('%n byte', '%n bytes', $bytes);
@@ -55,9 +70,10 @@ if (($page['grouping'] ?? 'none') === 'folder') {
 }
 style('shortlinks', 'public-page');
 ?>
-<main class="link-page link-page--<?php p((string)$page['layout']); ?>" style="--page-accent:<?php p($color); ?>;--page-bg:<?php p($background); ?>;--page-surface:<?php p($surface); ?>;--page-text:<?php p($text); ?>">
-	<header class="link-page__hero">
+<main class="link-page link-page--<?php p((string)$page['layout']); ?> link-page--theme-<?php p($preset); ?>" style="--page-accent:<?php p($color); ?>;--page-bg:<?php p($background); ?>;--page-surface:<?php p($surface); ?>;--page-text:<?php p($text); ?>;--page-font:<?php p($font); ?>;--page-base-size:<?php p((string)$baseSize); ?>px;--page-scale:<?php p((string)$scale); ?>">
+	<header class="link-page__hero link-page__hero--<?php p($headerAlignment); ?><?php if (($header['compact'] ?? false) === true): ?> link-page__hero--compact<?php endif; ?>">
 		<?php if (($header['brand'] ?? true) === true): ?><span class="link-page__brand">Nextcloud Shortlinks</span><?php endif; ?>
+		<?php if (($header['mark'] ?? true) === true): ?><span class="link-page__mark" aria-hidden="true"><?php p(mb_strtoupper(mb_substr((string)($page['title'] ?: 'S'), 0, 1))); ?></span><?php endif; ?>
 		<?php if (($header['title'] ?? true) === true): ?><h1><?php p((string)$page['title']); ?></h1><?php endif; ?>
 		<?php if (($header['lead'] ?? true) === true && $page['lead'] !== null): ?><p><?php p((string)$page['lead']); ?></p><?php endif; ?>
 		<?php if (($header['owner'] ?? true) === true): ?><small><?php p($l->t('Shared by %s', [$_['owner']])); ?></small><?php endif; ?>
@@ -110,7 +126,9 @@ style('shortlinks', 'public-page');
 			</div>
 		</section><?php endif; ?>
 	</section>
-	<?php if (($footer['enabled'] ?? true) === true): ?><footer><?php if (($footer['brand'] ?? true) === true) {
-		p($l->t('Shared securely with Nextcloud Shortlinks'));
-	} ?><?php if (($footer['updated'] ?? true) === true): ?><span><?php p($l->t('Updated %s', [date('Y-m-d', (int)$page['updatedAt'])])); ?></span><?php endif; ?></footer><?php endif; ?>
+	<?php if (($footer['enabled'] ?? true) === true): ?><footer style="position:static;inset:auto;width:auto">
+		<div class="link-page__footer-meta"><?php if (($footer['brand'] ?? true) === true): ?><span><?php $attribution = (string)($footer['attribution'] ?? 'Shared securely with Nextcloud Shortlinks');
+			p($attribution === 'Shared securely with Nextcloud Shortlinks' ? $l->t($attribution) : $attribution); ?></span><?php endif; ?><?php if (($footer['updated'] ?? true) === true): ?><span><?php p($l->t('Updated %s', [date('Y-m-d', (int)$page['updatedAt'])])); ?></span><?php endif; ?></div>
+		<?php if ($footerLinks !== []): ?><nav aria-label="<?php p($l->t('Footer links')); ?>"><?php foreach ($footerLinks as $link): ?><a href="<?php p((string)$link['shortUrl']); ?>"><?php p((string)($link['title'] ?: $link['slug'])); ?></a><?php endforeach; ?></nav><?php endif; ?>
+	</footer><?php endif; ?>
 </main>

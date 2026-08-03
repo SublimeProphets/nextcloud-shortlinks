@@ -30,7 +30,7 @@ function select(type: 'folder' | 'link' | 'page' | 'tag') {
 		force-menu
 		primary
 		default-icon="icon-add"
-		:menu-name="t('shortlinks', '+ New')"
+		:menu-name="t('shortlinks', 'New')"
 		:aria-label="t('shortlinks', 'Create new')">
 		<NcActionButton :name="t('shortlinks', 'New short link')" @click="select('link')">
 			<template #icon>
