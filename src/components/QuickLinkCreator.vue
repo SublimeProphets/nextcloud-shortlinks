@@ -20,6 +20,7 @@ import { api } from '../api/client'
 import { useAliasValidation } from '../composables/useAliasValidation'
 import { useLinkMetadataPreview } from '../composables/useLinkMetadataPreview'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
+import LinkAppearanceFields from './LinkAppearanceFields.vue'
 import LinkPreviewEditor from './LinkPreviewEditor.vue'
 
 const props = withDefaults(defineProps<{
@@ -53,6 +54,9 @@ const draft = reactive<LinkDraft>({
 	startsAt: null,
 	expiresAt: null,
 	clickLimit: null,
+	thumbnailPath: null,
+	mediaPath: null,
+	color: null,
 })
 const slug = computed({ get: () => draft.slug, set: value => { draft.slug = value } })
 const alias = useAliasValidation(slug)
@@ -195,6 +199,9 @@ function resetDraft() {
 		startsAt: null,
 		expiresAt: null,
 		clickLimit: null,
+		thumbnailPath: null,
+		mediaPath: null,
+		color: null,
 	})
 	editingAlias.value = false
 	aliasEdited.value = false
@@ -421,6 +428,11 @@ function toTimestamp(value: string): number | null {
 							:label="t('shortlinks', 'Password')" />
 					</div>
 					<div v-else class="settings-grid settings-grid--more">
+						<LinkAppearanceFields v-model:thumbnail-path="draft.thumbnailPath"
+							v-model:media-path="draft.mediaPath"
+							v-model:color="draft.color"
+							class="quick-create__appearance"
+							:thumbnail-src="metadata.thumbnailSrc.value" />
 						<NcTextArea v-model="draft.description" :label="t('shortlinks', 'Description (optional)')" />
 						<NcCheckboxRadioSwitch v-model="draft.favorite" type="switch">
 							{{ t('shortlinks', 'Favorite') }}
@@ -664,7 +676,8 @@ function toTimestamp(value: string): number | null {
 	gap: calc(var(--default-grid-baseline) * 3);
 }
 
-.settings-grid--more > :first-child {
+.settings-grid--more > :first-child,
+.quick-create__appearance {
 	grid-column: 1 / -1;
 }
 

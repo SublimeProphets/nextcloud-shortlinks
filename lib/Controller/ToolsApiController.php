@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\Shortlinks\Controller;
 
+use OCA\Shortlinks\Policy\LinkPolicy;
 use OCA\Shortlinks\Service\ImportExportService;
 use OCA\Shortlinks\Service\TitleFetcher;
+use OCA\Shortlinks\Service\UserSettingsService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\OpenAPI;
@@ -13,6 +15,7 @@ use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
 #[OpenAPI(tags: ['tools'])]
@@ -24,6 +27,9 @@ final class ToolsApiController extends AbstractApiOCSController {
 		private readonly ImportExportService $transfer,
 		private readonly IURLGenerator $urls,
 		private readonly TitleFetcher $titles,
+		private readonly UserSettingsService $userSettings,
+		private readonly IUserSession $userSession,
+		private readonly LinkPolicy $policy,
 	) {
 		parent::__construct($appName, $request, $logger);
 	}
@@ -49,6 +55,12 @@ final class ToolsApiController extends AbstractApiOCSController {
 	public function exportLinks(string $format = 'json', string $system = 'all', ?int $folderId = null, array $folderIds = [], array $tagIds = [], string $tagMode = 'and', string $search = '', ?int $createdFrom = null, ?int $createdTo = null, ?bool $active = null, array $linkIds = []): DataResponse {
 		return $this->respond(fn () => $this->transfer->export($format, ['system' => $system, 'folderId' => $folderId, 'folderIds' => $folderIds, 'tagIds' => $tagIds, 'tagMode' => $tagMode, 'search' => $search, 'createdFrom' => $createdFrom, 'createdTo' => $createdTo, 'active' => $active, 'linkIds' => $linkIds]));
 	}
+
+	/** Export all personal Shortlinks settings, folders, tags, and links. */
+	#[NoAdminRequired]
+	public function exportBackup(): DataResponse {
+		return $this->respond(fn (): array => $this->transfer->exportBackup($this->policy->currentUid()));
+	}
 	/**
 	 * Import links from bounded JSON or CSV content
 	 *
@@ -61,7 +73,7 @@ final class ToolsApiController extends AbstractApiOCSController {
 	public function importLinks(): DataResponse {
 		return $this->respond(function (): array {
 			$p = $this->payload(['format', 'content', 'dryRun', 'conflict']);
-			return $this->transfer->import((string)($p['format'] ?? 'csv'), (string)($p['content'] ?? ''), (bool)($p['dryRun'] ?? true), (string)($p['conflict'] ?? 'skip'));
+			return $this->transfer->import((string)($p['format'] ?? 'auto'), (string)($p['content'] ?? ''), (bool)($p['dryRun'] ?? true), (string)($p['conflict'] ?? 'skip'), $this->policy->currentUid());
 		}, Http::STATUS_CREATED);
 	}
 	/**
@@ -90,6 +102,10 @@ final class ToolsApiController extends AbstractApiOCSController {
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function title(): DataResponse {
 		return $this->respond(function (): array {
+			$uid = $this->userSession->getUser()?->getUID();
+			if ($uid === null || !$this->userSettings->allowsMetadataAutocomplete($uid)) {
+				throw new \OCA\Shortlinks\Exception\ValidationException('Automatic metadata completion is disabled', ['targetUrl' => 'metadata_disabled']);
+			}
 			$payload = $this->payload(['targetUrl']);
 			return ['title' => $this->titles->fetch((string)($payload['targetUrl'] ?? ''))];
 		});
@@ -106,6 +122,10 @@ final class ToolsApiController extends AbstractApiOCSController {
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function metadata(): DataResponse {
 		return $this->respond(function (): array {
+			$uid = $this->userSession->getUser()?->getUID();
+			if ($uid === null || !$this->userSettings->allowsMetadataAutocomplete($uid)) {
+				throw new \OCA\Shortlinks\Exception\ValidationException('Automatic metadata completion is disabled', ['targetUrl' => 'metadata_disabled']);
+			}
 			$payload = $this->payload(['targetUrl']);
 			$metadata = $this->titles->fetchMetadata((string)($payload['targetUrl'] ?? ''));
 			return ['title' => $metadata['title'], 'hasThumbnail' => $metadata['imageUrl'] !== null, 'imageUrl' => $metadata['imageUrl']];

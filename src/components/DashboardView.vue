@@ -6,10 +6,11 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import { api } from '../api/client'
-import type { Folder, LinkDraft, ShortLink, Tag } from '../types'
+import type { Folder, LinkDraft, ShortLink, Tag, UserSettings } from '../types'
 import BookmarkletGuide from './BookmarkletGuide.vue'
 import CompactLinkCard from './CompactLinkCard.vue'
 import QuickLinkCreator from './QuickLinkCreator.vue'
+import QuickStartGuide from './QuickStartGuide.vue'
 
 const props = withDefaults(defineProps<{
 	folders: Folder[]
@@ -18,14 +19,18 @@ const props = withDefaults(defineProps<{
 	allowedSchemes?: string[]
 	shortUrlTemplate?: string | null
 	allowTitleFetch?: boolean
+	useThumbnails?: boolean
+	showQuickStart?: boolean
 	create: (draft: Partial<LinkDraft>) => Promise<ShortLink>
 }>(), {
 	redirectStatuses: () => [301, 302, 307, 308],
 	allowedSchemes: () => ['http', 'https'],
 	shortUrlTemplate: null,
 	allowTitleFetch: false,
+	useThumbnails: true,
+	showQuickStart: true,
 })
-const emit = defineEmits<{ open: [link: ShortLink] }>()
+const emit = defineEmits<{ open: [link: ShortLink]; changed: []; settingsSaved: [settings: UserSettings] }>()
 const newest = ref<ShortLink[]>([])
 const favorites = ref<ShortLink[]>([])
 const top = ref<ShortLink[]>([])
@@ -71,6 +76,12 @@ const columns = [
 		<h1 id="dashboard-heading" class="visually-hidden">
 			{{ t('shortlinks', 'Dashboard') }}
 		</h1>
+		<QuickStartGuide v-if="showQuickStart"
+			:folders="folders"
+			:tags="tags"
+			:short-url-template="shortUrlTemplate"
+			@changed="emit('changed')"
+			@saved="emit('settingsSaved', $event)" />
 		<QuickLinkCreator :folders="folders"
 			:tags="tags"
 			:redirect-statuses="redirectStatuses"
@@ -97,6 +108,7 @@ const columns = [
 						:key="link.id"
 						:link="link"
 						:folder="folders.find(folder => folder.id === link.folderId)"
+						:show-thumbnail="useThumbnails"
 						@open="emit('open', $event)" />
 				</div>
 				<NcEmptyContent v-else :name="t('shortlinks', 'No links to show')" :description="t('shortlinks', 'This section fills up as you use Shortlinks.')" />

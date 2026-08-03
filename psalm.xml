@@ -31,5 +31,13 @@
 				<directory name="lib/Controller"/>
 			</errorLevel>
 		</InvalidReturnStatement>
+		<!-- The packaged OCP file-system stubs reference Nextcloud's legacy
+		     oc\hooks\emitter class, which is not part of the public OCP package. -->
+		<MissingDependency>
+			<errorLevel type="suppress">
+				<file name="lib/Service/LinkMediaService.php"/>
+				<file name="lib/Service/PageContentService.php"/>
+			</errorLevel>
+		</MissingDependency>
 	</issueHandlers>
 </psalm>

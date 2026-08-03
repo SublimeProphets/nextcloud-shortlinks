@@ -42,6 +42,8 @@ Run `docker compose --profile nextcloud35 up -d nextcloud35`, `--profile postgre
 - Exact, case-sensitive custom aliases plus random, sequential Base36/Base62 and readable title/URL-derived generators with configurable random or numbered collision suffixes.
 - Global and per-user sharing URLs using a simple base domain, `{alias}`/`{user}` templates or bounded regular-expression replacements.
 - Link lifecycle: create, edit with optimistic concurrency, clone, favorite, activate, bulk edit, trash, restore and permanent deletion.
+- Custom thumbnails from Nextcloud Files, decorative image/video media, themed link cards and shareable Pages with live design previews.
+- Page collections sourced from folders, tags or selected links, with responsive layouts and private/public/password/restricted access.
 - Nested per-user folders, tags, read/edit shares to users or groups, keyboard-operable navigation, responsive UI and dark-mode-compatible styling.
 - Public, authenticated, restricted, password-protected and disabled access modes; start/expiry times; atomic click limits; selectable 301/302/307/308 redirects.
 - Local QR generation, bookmarklet, bounded CSV/JSON import and export, CSV-injection protection.
@@ -76,4 +78,4 @@ For an isolated release artifact, run `make package` or `bash scripts/package.sh
 
 ## Project status and release inputs
 
-Version `1.3.0` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.
+Version `1.6.0` is prepared as an unsigned source release. App Store publishing still requires a real repository URL, maintainer identity, screenshots from a real Nextcloud instance, an App Store account/certificate, signed archive and human release review. No signing key is included.

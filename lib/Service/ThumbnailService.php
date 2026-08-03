@@ -36,7 +36,7 @@ final class ThumbnailService {
 
 	/** Re-read one target page and persist its current share image. */
 	public function refresh(ShortLink $link): ?bool {
-		if (!$this->settings->bool('title_fetch')) {
+		if (!$this->settings->bool('title_fetch') || !$this->settings->bool('metadata_collection')) {
 			return null;
 		}
 		$refreshedAt = $this->time->getTime();

@@ -7,6 +7,6 @@ for (const [directory, extensions] of [['js', new Set(['.mjs', '.map'])], ['css'
 	const target = resolve(projectRoot, directory)
 	if (dirname(target) !== projectRoot) throw new Error(`Refusing unexpected asset directory: ${target}`)
 	for (const entry of await readdir(target, { withFileTypes: true })) {
-		if (entry.isFile() && extensions.has(extname(entry.name))) await unlink(join(target, entry.name))
+		if (entry.isFile() && extensions.has(extname(entry.name)) && entry.name !== 'public-page.css') await unlink(join(target, entry.name))
 	}
 }

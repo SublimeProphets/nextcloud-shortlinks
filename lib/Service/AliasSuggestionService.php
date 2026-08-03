@@ -47,7 +47,7 @@ final class AliasSuggestionService {
 
 	public function candidate(string $ownerUid, string $title, string $targetUrl, int $attempt): string {
 		$configuration = $this->userSettings->effectiveAliasConfiguration($ownerUid);
-		if ($configuration['strategy'] === 'global') {
+		if (in_array($configuration['strategy'], ['global', 'shortest'], true)) {
 			return $this->generator->generate();
 		}
 		if ($configuration['strategy'] === 'random') {

@@ -31,13 +31,28 @@ const settings = reactive<UserSettings>({
 	previewAlias: 'summer-campaign',
 	previewUrl: '',
 	shortUrlTemplate: '',
+	useThumbnails: true,
+	metadataAutocomplete: true,
+	showQuickStart: true,
+	metadataCollectionEnabled: true,
+	allowImportSuggestions: true,
+	email: '',
 })
 
 const aliasExample = computed(() => {
+	if (settings.aliasStrategy === 'shortest') return '1a'
 	if (settings.aliasStrategy === 'readable') return settings.collisionStrategy === 'numbered' ? 'summer-campaign-2' : `summer-campaign-${'x'.repeat(settings.suffixLength)}`
 	if (settings.aliasStrategy === 'random') return 'aB3x9Qz'
 	return settings.previewAlias
 })
+const forwardingPath = `${window.location.origin}/apps/shortlinks/r/`
+const htaccessSnippet = computed(() => `RewriteEngine On\nRewriteRule ^(.+?)/?$ ${forwardingPath}$1 [R=302,L,NE]`)
+const phpSnippet = computed(() => `<?php\n$alias = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');\nheader('Location: ${forwardingPath}' . rawurlencode($alias), true, 302);\nexit;`)
+
+async function copySnippet(value: string) {
+	await navigator.clipboard.writeText(value)
+	showSuccess(t('shortlinks', 'Forwarding example copied'))
+}
 const canonicalExample = computed(() => `${window.location.origin}/apps/shortlinks/r/${aliasExample.value}`)
 const urlPreview = computed(() => {
 	const canonical = canonicalExample.value
@@ -107,6 +122,7 @@ async function save(silent = false) {
 			<p>{{ t('shortlinks', 'Choose how the editable alias field is prefilled when you create a link.') }}</p>
 			<label class="select-field"><span>{{ t('shortlinks', 'Alias strategy') }}</span><select v-model="settings.aliasStrategy" :disabled="!settings.allowAliasSettings">
 				<option value="inherit">{{ t('shortlinks', 'Use administrator default') }}</option>
+				<option value="shortest">{{ t('shortlinks', 'As short as possible') }}</option>
 				<option value="readable">{{ t('shortlinks', 'Guess from title or destination') }}</option>
 				<option value="random">{{ t('shortlinks', 'Generate a random alias') }}</option>
 			</select></label>
@@ -157,7 +173,21 @@ async function save(silent = false) {
 			<div class="example-card">
 				<span>{{ t('shortlinks', 'Preview') }}</span><strong>{{ urlPreview || canonicalExample }}</strong>
 			</div>
-			<NcNoteCard v-if="settings.urlMode !== 'inherit'" type="warning" :text="t('shortlinks', 'Your custom domain must already forward requests to this Nextcloud Shortlinks endpoint.')" />
+			<NcNoteCard v-if="settings.urlMode !== 'inherit'" type="info" :text="t('shortlinks', 'Your custom domain must forward the alias to this Nextcloud Shortlinks endpoint. These drop-in examples perform a simple redirect and keep your links working without another application.')" />
+			<details v-if="settings.urlMode !== 'inherit'" class="forwarding-example">
+				<summary>{{ t('shortlinks', 'Apache .htaccess example') }}</summary>
+				<pre><code>{{ htaccessSnippet }}</code></pre>
+				<NcButton variant="tertiary" @click="copySnippet(htaccessSnippet)">
+					{{ t('shortlinks', 'Copy .htaccess') }}
+				</NcButton>
+			</details>
+			<details v-if="settings.urlMode !== 'inherit'" class="forwarding-example">
+				<summary>{{ t('shortlinks', 'PHP index.php example') }}</summary>
+				<pre><code>{{ phpSnippet }}</code></pre>
+				<NcButton variant="tertiary" @click="copySnippet(phpSnippet)">
+					{{ t('shortlinks', 'Copy index.php') }}
+				</NcButton>
+			</details>
 			<NcButton type="submit" variant="primary" :disabled="saving">
 				{{ saving ? t('shortlinks', 'Saving…') : t('shortlinks', 'Save') }}
 			</NcButton>
@@ -185,4 +215,10 @@ async function save(silent = false) {
 .preference-group > :last-child:is(button, .button-vue) { justify-self: start; }
 
 .autosave-status { min-block-size: 20px; color: var(--color-text-maxcontrast); font-size: .85rem; }
+
+.forwarding-example { padding: calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 3); border: 1px solid var(--color-border); border-radius: var(--border-radius-large); }
+
+.forwarding-example summary { cursor: pointer; font-weight: 600; }
+
+.forwarding-example pre { max-inline-size: 100%; overflow: auto; padding: calc(var(--default-grid-baseline) * 2); border-radius: var(--border-radius); background: var(--color-background-dark); }
 </style>

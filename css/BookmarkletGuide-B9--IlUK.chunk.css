@@ -1,0 +1,29 @@
+
+.bookmarklet-guide[data-v-a119e4e5] { display: grid; gap: calc(var(--default-grid-baseline) * 4);
+}
+.bookmarklet-guide__intro[data-v-a119e4e5] { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: calc(var(--default-grid-baseline) * 3); padding: calc(var(--default-grid-baseline) * 4); border-radius: var(--border-radius-large); background: var(--color-primary-element-light);
+}
+.bookmarklet-guide__intro h2[data-v-a119e4e5],
+.bookmarklet-guide__intro p[data-v-a119e4e5],
+.bookmarklet-guide__mobile[data-v-a119e4e5] { margin: 0;
+}
+.bookmarklet-guide__intro p[data-v-a119e4e5] { margin-block-start: var(--default-grid-baseline); color: var(--color-text-maxcontrast);
+}
+.bookmarklet-guide__steps[data-v-a119e4e5] { display: grid; gap: calc(var(--default-grid-baseline) * 2); margin: 0; padding-inline-start: calc(var(--default-grid-baseline) * 6);
+}
+.bookmarklet-guide__drag-area[data-v-a119e4e5] { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--default-grid-baseline) * 3); padding: calc(var(--default-grid-baseline) * 4); border: 1px dashed var(--color-border-maxcontrast); border-radius: var(--border-radius-large); background: var(--color-background-dark);
+}
+.bookmarklet-guide__button[data-v-a119e4e5] { display: inline-flex; align-items: center; gap: calc(var(--default-grid-baseline) * 2); min-block-size: 44px; padding-inline: calc(var(--default-grid-baseline) * 4); border-radius: var(--border-radius-pill); text-decoration: none; cursor: grab;
+}
+.bookmarklet-guide__button[data-v-a119e4e5]:active { cursor: grabbing;
+}
+.bookmarklet-guide__mobile[data-v-a119e4e5] { color: var(--color-text-maxcontrast); font-size: .9em;
+}
+.bookmarklet-guide--compact[data-v-a119e4e5] { gap: calc(var(--default-grid-baseline) * 3);
+}
+.bookmarklet-guide--compact .bookmarklet-guide__intro[data-v-a119e4e5] { padding: 0; background: transparent;
+}
+.bookmarklet-guide--compact .bookmarklet-guide__intro h2[data-v-a119e4e5] { font-size: 1.15rem;
+}
+.bookmarklet-guide--compact .bookmarklet-guide__drag-area[data-v-a119e4e5] { padding: calc(var(--default-grid-baseline) * 3);
+}

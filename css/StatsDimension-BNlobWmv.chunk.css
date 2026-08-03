@@ -1,0 +1,67 @@
+
+.line-chart[data-v-4f26c308] { position: relative; display: grid; place-items: center; inline-size: 100%; aspect-ratio: 16 / 9; min-block-size: 180px; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); background: var(--color-main-background);
+}
+.line-chart svg[data-v-4f26c308] { inline-size: 100%; block-size: 100%; overflow: visible;
+}
+.line-chart__grid[data-v-4f26c308] { stroke: var(--color-border); stroke-width: 1; vector-effect: non-scaling-stroke;
+}
+.line-chart__area[data-v-4f26c308] { fill: currentColor; opacity: .1;
+}
+.line-chart__line[data-v-4f26c308] { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke;
+}
+.line-chart__line--unique[data-v-4f26c308] { color: var(--color-text-maxcontrast); stroke-dasharray: 9 7;
+}
+.line-chart circle[data-v-4f26c308] { fill: var(--color-main-background); stroke: currentColor; stroke-width: 3; vector-effect: non-scaling-stroke;
+}
+.line-chart__unique-point[data-v-4f26c308] { color: var(--color-text-maxcontrast);
+}
+.line-chart text[data-v-4f26c308] { fill: var(--color-text-maxcontrast); font-size: 13px;
+}
+.line-chart__legend[data-v-4f26c308] { position: absolute; inset-block-start: 10px; inset-inline-end: 12px; display: flex; gap: 12px; padding: 3px 6px; border-radius: var(--border-radius); background: color-mix(in srgb, var(--color-main-background) 88%, transparent); font-size: .75rem;
+}
+.line-chart__legend span[data-v-4f26c308] { display: inline-flex; align-items: center; gap: 5px;
+}
+.line-chart__legend i[data-v-4f26c308] { inline-size: 16px; block-size: 3px; border-radius: 2px; background: var(--color-text-maxcontrast);
+}
+.line-chart--compact[data-v-4f26c308] { aspect-ratio: auto; min-block-size: 3rem; block-size: 3rem; border: 0; border-radius: var(--border-radius); background: var(--color-background-hover);
+}
+.line-chart--compact rect[data-v-4f26c308] { fill: currentColor; opacity: .8;
+}
+.line-chart p[data-v-4f26c308] { color: var(--color-text-maxcontrast);
+}
+
+.pie-chart-wrap[data-v-84bc951f] { display: grid; align-content: start; justify-items: center; gap: calc(var(--default-grid-baseline) * 3); min-inline-size: 150px;
+}
+.pie-chart[data-v-84bc951f] { display: grid; inline-size: 116px; block-size: 116px; border-radius: 50%; place-items: center;
+}
+.pie-chart[data-v-84bc951f]::before { content: ''; grid-area: 1 / 1; inline-size: 62px; block-size: 62px; border-radius: 50%; background: var(--color-main-background);
+}
+.pie-chart span[data-v-84bc951f] { z-index: 1; grid-area: 1 / 1; font-weight: 700;
+}
+.pie-chart-wrap ul[data-v-84bc951f] { display: grid; inline-size: 100%; gap: var(--default-grid-baseline); margin: 0; padding: 0; list-style: none; font-size: .82rem;
+}
+.pie-chart-wrap li[data-v-84bc951f] { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: var(--default-grid-baseline);
+}
+.pie-chart-wrap li i[data-v-84bc951f] { inline-size: 8px; block-size: 8px; border-radius: 50%;
+}
+.pie-chart-wrap li span[data-v-84bc951f] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.stats-dimension[data-v-4f279d3d] { display: grid; gap: calc(var(--default-grid-baseline) * 3); min-inline-size: 0;
+}
+.stats-dimension h3[data-v-4f279d3d] { display: flex; align-items: center; gap: calc(var(--default-grid-baseline) * 2); margin: 0;
+}
+.stats-dimension__content[data-v-4f279d3d] { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: start; gap: calc(var(--default-grid-baseline) * 4);
+}
+.stats-dimension__table[data-v-4f279d3d] { min-inline-size: 0; overflow-x: auto;
+}
+.stats-dimension table[data-v-4f279d3d] { inline-size: 100%; border-collapse: collapse;
+}
+.stats-dimension th[data-v-4f279d3d], .stats-dimension td[data-v-4f279d3d] { padding: calc(var(--default-grid-baseline) * 2); border-block-end: 1px solid var(--color-border); text-align: start;
+}
+.stats-dimension__empty[data-v-4f279d3d] { margin: 0; padding: calc(var(--default-grid-baseline) * 4); border-radius: var(--border-radius-large); background: var(--color-background-hover); color: var(--color-text-maxcontrast); text-align: center;
+}
+@media (max-width: 700px) {
+.stats-dimension__content[data-v-4f279d3d] { grid-template-columns: 1fr;
+}
+}

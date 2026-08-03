@@ -13,6 +13,7 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\OpenAPI;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
 #[OpenAPI(tags: ['user_settings'])]
@@ -25,6 +26,7 @@ final class UserSettingsApiController extends AbstractApiOCSController {
 		private readonly AliasSuggestionService $aliases,
 		private readonly LinkUrlService $linkUrls,
 		private readonly LinkPolicy $policy,
+		private readonly IUserSession $userSession,
 	) {
 		parent::__construct($appName, $request, $logger);
 	}
@@ -52,7 +54,7 @@ final class UserSettingsApiController extends AbstractApiOCSController {
 	public function update(): DataResponse {
 		return $this->respond(function (): array {
 			$uid = $this->policy->currentUid();
-			$this->settings->save($uid, $this->payload(['aliasStrategy', 'collisionStrategy', 'suffixLength', 'urlMode', 'baseUrl', 'urlTemplate', 'urlPattern', 'urlReplacement']));
+			$this->settings->save($uid, $this->payload(['aliasStrategy', 'collisionStrategy', 'suffixLength', 'urlMode', 'baseUrl', 'urlTemplate', 'urlPattern', 'urlReplacement', 'useThumbnails', 'metadataAutocomplete', 'showQuickStart']));
 			return $this->response($uid);
 		});
 	}
@@ -64,6 +66,7 @@ final class UserSettingsApiController extends AbstractApiOCSController {
 		$settings['previewAlias'] = $alias;
 		$settings['shortUrlTemplate'] = $this->linkUrls->templateFor($uid);
 		$settings['previewUrl'] = $this->linkUrls->forSlug($alias, $uid);
+		$settings['email'] = $this->userSession->getUser()?->getEMailAddress() ?? '';
 		return $settings;
 	}
 }

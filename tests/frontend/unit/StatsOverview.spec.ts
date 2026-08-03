@@ -19,6 +19,7 @@ const overview = {
 	topLinks: [{ id: 1, slug: 'campaign', title: 'Campaign', clicks: 8 }],
 	leastUsedLinks: [],
 	newestLinks: [],
+	timeSeries: [],
 	dimensions: { browser: [{ value: 'Firefox', clicks: 5, uniqueVisitors: 3 }] },
 }
 

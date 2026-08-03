@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/vue'
+import { render } from '@testing-library/vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShortLink } from '../../../src/types'
 
@@ -13,11 +13,12 @@ const { apiMock } = vi.hoisted(() => ({
 		createShare: vi.fn(),
 		deleteShare: vi.fn(),
 		exportStats: vi.fn(),
+		qrUrl: vi.fn(() => '/qr/1'),
 	},
 }))
 vi.mock('../../../src/api/client', () => ({ api: apiMock }))
 vi.mock('@nextcloud/vue/components/NcButton', () => ({ default: { template: '<button v-bind="$attrs"><slot/></button>' } }))
-vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 
 const link = (canShare: boolean): ShortLink => ({
 	id: 1,
@@ -53,18 +54,19 @@ describe('LinkDetail permissions', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		apiMock.shares.mockResolvedValue([])
+		apiMock.stats.mockResolvedValue({ totalClicks: 0, lifetimeClicks: 3, uniqueVisitors: 0, granularity: 'day', timeSeries: [], dimensions: {}, comparison: null })
 	})
 
 	it('does not expose delegation controls to a shared editor', () => {
 		const view = render(LinkDetail, { props: { link: link(false) }, ...options })
-		expect(view.queryByRole('button', { name: 'shares' })).toBeNull()
+		expect(view.queryByRole('button', { name: 'Add person or group' })).toBeNull()
 		expect(view.getByRole('button', { name: 'Edit' })).toBeTruthy()
 	})
 
-	it('allows an owner to open share management', async () => {
+	it('shows merged share management to the owner', async () => {
 		const view = render(LinkDetail, { props: { link: link(true) }, ...options })
-		await fireEvent.click(view.getByRole('button', { name: 'shares' }))
+		expect(await view.findByRole('button', { name: 'Add person or group' })).toBeTruthy()
 		expect(apiMock.shares).toHaveBeenCalledWith(1)
-		expect(view.getByText('Shares and access')).toBeTruthy()
+		expect(view.getByText('Access and sharing')).toBeTruthy()
 	})
 })

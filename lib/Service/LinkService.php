@@ -38,7 +38,9 @@ final class LinkService {
 		private readonly AliasSuggestionService $aliasSuggestions,
 		private readonly LinkUrlService $linkUrls,
 		private readonly ThumbnailService $thumbnails,
+		private readonly LinkMediaService $media,
 		private readonly SettingsService $settings,
+		private readonly UserSettingsService $userSettings,
 		private readonly StatsMapper $stats,
 		private readonly LinkRankingService $ranking,
 		private readonly AuditService $audit,
@@ -104,7 +106,7 @@ final class LinkService {
 			if ($existing !== null) {
 				if ($thumbnailProvided) {
 					$this->thumbnails->storeDiscovered($existing, $thumbnailUrl);
-				} elseif ($existing->getThumbnailRefreshedAt() === null && $this->settings->bool('title_fetch')) {
+				} elseif ($existing->getThumbnailRefreshedAt() === null && $this->userSettings->allowsMetadataAutocomplete($ownerUid)) {
 					$this->thumbnails->refresh($existing);
 				}
 				return $this->serialize($existing);
@@ -139,7 +141,7 @@ final class LinkService {
 				$this->events->dispatchTyped(new LinkCreatedEvent($link));
 				if ($thumbnailProvided) {
 					$this->thumbnails->storeDiscovered($link, $thumbnailUrl);
-				} elseif ($this->settings->bool('title_fetch')) {
+				} elseif ($this->userSettings->allowsMetadataAutocomplete($ownerUid)) {
 					$this->thumbnails->refresh($link);
 				}
 				return $this->serialize($link);
@@ -249,7 +251,7 @@ final class LinkService {
 		$updated = $this->find($id);
 		if ($thumbnailProvided) {
 			$this->thumbnails->storeDiscovered($updated, $thumbnailUrl);
-		} elseif ($before['target'] !== $updated->getTargetHash() && $this->settings->bool('title_fetch')) {
+		} elseif ($before['target'] !== $updated->getTargetHash() && $this->userSettings->allowsMetadataAutocomplete($updated->getOwnerUid())) {
 			$this->thumbnails->refresh($updated);
 		}
 		$this->events->dispatchTyped(new LinkUpdatedEvent($updated));
@@ -318,6 +320,10 @@ final class LinkService {
 		if ($link->getOwnerUid() === $this->policy->currentUid()) {
 			$data['folderId'] = $overrideFolder ? $folderId : $link->getFolderId();
 			$data['tagIds'] = array_map(static fn ($tag): int => $tag->getId(), $this->tags->findForLink($id));
+			$data['thumbnailUrl'] = $link->getThumbnailUrl();
+			$data['thumbnailPath'] = $link->getThumbnailPath();
+			$data['mediaPath'] = $link->getMediaPath();
+			$data['color'] = $link->getColor();
 		}
 		return $this->createForOwner($data, $this->policy->currentUid(), true);
 	}
@@ -411,6 +417,30 @@ final class LinkService {
 		if (array_key_exists('description', $data)) {
 			$link->setDescription($data['description'] === null ? null : substr((string)$data['description'], 0, 10000));
 		}
+		if (array_key_exists('thumbnailPath', $data)) {
+			if ($data['thumbnailPath'] === null || trim((string)$data['thumbnailPath']) === '') {
+				$link->setThumbnailPath(null);
+			} else {
+				$link->setThumbnailPath($this->media->validatePath($ownerUid, $data['thumbnailPath'], false)['path']);
+			}
+		}
+		if (array_key_exists('mediaPath', $data)) {
+			if ($data['mediaPath'] === null || trim((string)$data['mediaPath']) === '') {
+				$link->setMediaPath(null);
+				$link->setMediaMime(null);
+			} else {
+				$media = $this->media->validatePath($ownerUid, $data['mediaPath'], true);
+				$link->setMediaPath($media['path']);
+				$link->setMediaMime($media['mime']);
+			}
+		}
+		if (array_key_exists('color', $data)) {
+			$color = trim((string)($data['color'] ?? ''));
+			if ($color !== '' && preg_match('/^#[0-9a-fA-F]{6}$/D', $color) !== 1) {
+				throw new ValidationException('Enter a valid hexadecimal color', ['color' => 'invalid']);
+			}
+			$link->setColor($color === '' ? null : strtolower($color));
+		}
 		if (array_key_exists('favorite', $data)) {
 			$link->setIsFavorite((bool)$data['favorite']);
 		}
@@ -486,6 +516,8 @@ final class LinkService {
 	private function serialize(ShortLink $link): array {
 		$tags = array_map(static fn ($tag): array => $tag->toArray(), $this->tags->findForLink($link->getId()));
 		$result = $link->toArray($this->linkUrls->forSlug($link->getSlug(), $link->getOwnerUid()), $tags);
+		$result['thumbnailMediaUrl'] = $this->media->url($link, 'thumbnail');
+		$result['mediaUrl'] = $this->media->url($link, 'media');
 		$result['canEdit'] = $this->policy->canEdit($link);
 		$result['canShare'] = $this->policy->canShare($link);
 		if ($link->getOwnerUid() !== $this->policy->currentUid() && !$this->policy->canManageAll()) {

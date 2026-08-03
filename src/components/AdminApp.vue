@@ -38,6 +38,9 @@ interface AdminSettingsState {
 	allowed_schemes: string[]
 	redirect_statuses: number[]
 	title_fetch: boolean
+	metadata_collection: boolean
+	allow_import_suggestions: boolean
+	suggestion_recipient: string
 	stats_enabled: boolean
 	privacy_mode: 'counts' | 'detailed'
 	respect_dnt: boolean
@@ -250,6 +253,12 @@ function formatLastRefresh(timestamp: number | null): string {
 					min="1"
 					max="1000000"
 					:label="t('shortlinks', 'Maximum links per user')" />
+				<NcCheckboxRadioSwitch v-model="settings.allow_import_suggestions" type="switch">
+					{{ t('shortlinks', 'Allow users to request support for new import formats') }}
+				</NcCheckboxRadioSwitch>
+				<NcTextField v-model="settings.suggestion_recipient"
+					type="email"
+					:label="t('shortlinks', 'Recipient for suggestions and compatibility requests')" />
 			</div>
 		</NcSettingsSection>
 
@@ -447,10 +456,10 @@ function formatLastRefresh(timestamp: number | null): string {
 						{{ t('shortlinks', '{count} pages could not be checked and kept their previous thumbnail.', { count: thumbnailProgress.failed }) }}
 					</p>
 					<div class="thumbnail-overview__actions">
-						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch" @click="refreshThumbnails(true)">
+						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch || !settings.metadata_collection" @click="refreshThumbnails(true)">
 							{{ t('shortlinks', 'Refresh missing thumbnails') }}
 						</NcButton>
-						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch" @click="refreshThumbnails(false)">
+						<NcButton :disabled="refreshingThumbnails || !settings.title_fetch || !settings.metadata_collection" @click="refreshThumbnails(false)">
 							{{ t('shortlinks', 'Refresh all thumbnails') }}
 						</NcButton>
 					</div>
@@ -464,6 +473,12 @@ function formatLastRefresh(timestamp: number | null): string {
 				<NcCheckboxRadioSwitch v-model="settings.stats_enabled" type="switch">
 					{{ t('shortlinks', 'Collect statistics') }}
 				</NcCheckboxRadioSwitch>
+				<NcCheckboxRadioSwitch v-model="settings.metadata_collection" type="switch">
+					{{ t('shortlinks', 'Collect destination metadata such as sharing images and titles') }}
+				</NcCheckboxRadioSwitch>
+				<p class="settings-hint">
+					{{ t('shortlinks', 'Turning this off disables metadata autocomplete for every user and stops thumbnail refreshes.') }}
+				</p>
 				<div class="settings-grid">
 					<label class="settings-select">
 						<span>{{ t('shortlinks', 'Privacy mode') }}</span>

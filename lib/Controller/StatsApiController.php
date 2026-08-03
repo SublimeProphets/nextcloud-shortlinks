@@ -99,4 +99,11 @@ final class StatsApiController extends AbstractApiOCSController {
 		$from ??= $to - 90 * 86400;
 		return $this->respond(fn () => $this->stats->clickLog($id, $from, $to, $page, $perPage, $bot));
 	}
+
+	#[NoAdminRequired]
+	public function exportClicks(int $id, string $format = 'json', ?int $from = null, ?int $to = null, ?bool $bot = null): DataResponse {
+		$to ??= $this->time->getTime();
+		$from ??= $to - 90 * 86400;
+		return $this->respond(fn () => $this->stats->exportClickLog($id, $from, $to, $format, $bot));
+	}
 }

@@ -7,9 +7,9 @@ withDefaults(defineProps<{ title: string; icon: string; rows: Array<{ value: str
 </script>
 
 <template>
-	<section v-if="rows.length" class="stats-dimension">
+	<section class="stats-dimension">
 		<h3><NcIconSvgWrapper :path="icon" :size="22" aria-hidden="true" />{{ title }}</h3>
-		<div class="stats-dimension__content">
+		<div v-if="rows.length" class="stats-dimension__content">
 			<MiniPieChart :rows="rows" />
 			<div class="stats-dimension__table">
 				<table>
@@ -28,7 +28,9 @@ withDefaults(defineProps<{ title: string; icon: string; rows: Array<{ value: str
 					</tbody>
 				</table>
 			</div>
-		</div>
+		</div><p v-else class="stats-dimension__empty">
+			{{ t('shortlinks', 'No data for this period.') }}
+		</p>
 	</section>
 </template>
 
@@ -44,5 +46,7 @@ withDefaults(defineProps<{ title: string; icon: string; rows: Array<{ value: str
 .stats-dimension table { inline-size: 100%; border-collapse: collapse; }
 
 .stats-dimension th, .stats-dimension td { padding: calc(var(--default-grid-baseline) * 2); border-block-end: 1px solid var(--color-border); text-align: start; }
+
+.stats-dimension__empty { margin: 0; padding: calc(var(--default-grid-baseline) * 4); border-radius: var(--border-radius-large); background: var(--color-background-hover); color: var(--color-text-maxcontrast); text-align: center; }
 @media (max-width: 700px) { .stats-dimension__content { grid-template-columns: 1fr; } }
 </style>

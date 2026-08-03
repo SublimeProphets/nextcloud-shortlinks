@@ -7,6 +7,7 @@ namespace OCA\Shortlinks\Controller;
 use OCA\Shortlinks\Capabilities\Capabilities;
 use OCA\Shortlinks\Service\LinkUrlService;
 use OCA\Shortlinks\Service\SettingsService;
+use OCA\Shortlinks\Service\UserSettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -25,6 +26,7 @@ final class PageController extends Controller {
 		private readonly Capabilities $capabilities,
 		private readonly LinkUrlService $linkUrls,
 		private readonly IUserSession $userSession,
+		private readonly UserSettingsService $userSettings,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -34,7 +36,16 @@ final class PageController extends Controller {
 	public function index(): TemplateResponse {
 		$this->initialState->provideInitialState('capabilities', $this->capabilities->getCapabilities()['shortlinks']);
 		$uid = $this->userSession->getUser()?->getUID();
-		$this->initialState->provideInitialState('settings', ['aliasMode' => $this->settings->string('alias_mode'), 'aliasLength' => $this->settings->int('alias_length'), 'allowedSchemes' => $this->settings->allowedSchemes(), 'shortUrlTemplate' => $uid === null ? null : $this->linkUrls->templateFor($uid), 'titleFetch' => $this->settings->bool('title_fetch')]);
+		$personal = $uid === null ? [] : $this->userSettings->get($uid);
+		$this->initialState->provideInitialState('settings', [
+			'aliasMode' => $this->settings->string('alias_mode'),
+			'aliasLength' => $this->settings->int('alias_length'),
+			'allowedSchemes' => $this->settings->allowedSchemes(),
+			'shortUrlTemplate' => $uid === null ? null : $this->linkUrls->templateFor($uid),
+			'titleFetch' => $uid !== null && $this->userSettings->allowsMetadataAutocomplete($uid),
+			'useThumbnails' => (bool)($personal['useThumbnails'] ?? true),
+			'showQuickStart' => (bool)($personal['showQuickStart'] ?? true),
+		]);
 		Util::addScript('shortlinks', 'shortlinks-main');
 		Util::addStyle('shortlinks', 'shortlinks-main');
 		return new TemplateResponse('shortlinks', 'index');

@@ -3,6 +3,7 @@ import {
 	mdiContentCopy,
 	mdiDeleteOutline,
 	mdiExportVariant,
+	mdiFileDocumentPlusOutline,
 	mdiFolderMoveOutline,
 	mdiFolderPlusOutline,
 	mdiLinkPlus,
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 	toggle: [value: { id: number; open: boolean }]
 	createLink: [folder: Folder]
 	createFolder: [folder: Folder]
+	createPage: [folder: Folder]
 	move: [folder: Folder]
 	copy: [folder: Folder]
 	export: [folder: Folder]
@@ -63,6 +65,11 @@ const expanded = computed(() => props.expandedIds.has(props.folder.id))
 					<NcIconSvgWrapper :path="mdiFolderPlusOutline" />
 				</template>
 			</NcActionButton>
+			<NcActionButton :name="t('shortlinks', 'Create page from folder')" @click="emit('createPage', folder)">
+				<template #icon>
+					<NcIconSvgWrapper :path="mdiFileDocumentPlusOutline" />
+				</template>
+			</NcActionButton>
 			<NcActionSeparator />
 			<NcActionButton :name="t('shortlinks', 'Move')" @click="emit('move', folder)">
 				<template #icon>
@@ -96,6 +103,7 @@ const expanded = computed(() => props.expandedIds.has(props.folder.id))
 			@toggle="emit('toggle', $event)"
 			@create-link="emit('createLink', $event)"
 			@create-folder="emit('createFolder', $event)"
+			@create-page="emit('createPage', $event)"
 			@move="emit('move', $event)"
 			@copy="emit('copy', $event)"
 			@export="emit('export', $event)"

@@ -24,8 +24,16 @@ use OCP\DB\Types;
  * @method void setTitle(string $value)
  * @method ?string getThumbnailUrl()
  * @method void setThumbnailUrl(?string $value)
+ * @method ?string getThumbnailPath()
+ * @method void setThumbnailPath(?string $value)
  * @method ?int getThumbnailRefreshedAt()
  * @method void setThumbnailRefreshedAt(?int $value)
+ * @method ?string getMediaPath()
+ * @method void setMediaPath(?string $value)
+ * @method ?string getMediaMime()
+ * @method void setMediaMime(?string $value)
+ * @method ?string getColor()
+ * @method void setColor(?string $value)
  * @method ?string getDescription()
  * @method void setDescription(?string $value)
  * @method bool getIsFavorite()
@@ -66,7 +74,11 @@ final class ShortLink extends Entity {
 	protected string $targetHash = '';
 	protected string $title = '';
 	protected ?string $thumbnailUrl = null;
+	protected ?string $thumbnailPath = null;
 	protected ?int $thumbnailRefreshedAt = null;
+	protected ?string $mediaPath = null;
+	protected ?string $mediaMime = null;
+	protected ?string $color = null;
 	protected ?string $description = null;
 	protected bool $isFavorite = false;
 	protected bool $isActive = true;
@@ -99,7 +111,8 @@ final class ShortLink extends Entity {
 		return [
 			'id' => $this->getId(), 'ownerUid' => $this->getOwnerUid(), 'folderId' => $this->getFolderId(),
 			'slug' => $this->getSlug(), 'shortUrl' => $shortUrl, 'targetUrl' => $this->getTargetUrl(),
-			'title' => $this->getTitle(), 'thumbnailUrl' => $this->getThumbnailUrl(), 'thumbnailRefreshedAt' => $this->getThumbnailRefreshedAt(),
+			'title' => $this->getTitle(), 'thumbnailUrl' => $this->getThumbnailUrl(), 'thumbnailPath' => $this->getThumbnailPath(),
+			'thumbnailRefreshedAt' => $this->getThumbnailRefreshedAt(), 'mediaPath' => $this->getMediaPath(), 'mediaMime' => $this->getMediaMime(), 'color' => $this->getColor(),
 			'description' => $this->getDescription(), 'favorite' => $this->getIsFavorite(),
 			'active' => $this->getIsActive(), 'accessMode' => $this->getAccessMode(), 'passwordProtected' => $this->getPasswordHash() !== null,
 			'redirectStatus' => $this->getRedirectStatus(), 'startsAt' => $this->getStartsAt(), 'expiresAt' => $this->getExpiresAt(),

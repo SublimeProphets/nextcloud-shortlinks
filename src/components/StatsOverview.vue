@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import {
-	mdiAccountGroupOutline, mdiChartDonut, mdiEarth, mdiLaptop, mdiLinkVariant,
-	mdiMapMarkerOutline, mdiRobotOutline, mdiWeb,
+	mdiAccountGroupOutline, mdiChartDonut, mdiEarth, mdiLaptop,
+	mdiMapMarkerOutline, mdiNewBox, mdiRobotOutline, mdiTrendingDown, mdiTrendingUp, mdiWeb,
 } from '@mdi/js'
 import { showError } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -11,6 +11,7 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import { api } from '../api/client'
 import type { StatsOverview } from '../types'
+import MiniLineChart from './MiniLineChart.vue'
 import StatsDimension from './StatsDimension.vue'
 
 type Period = '7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'
@@ -48,6 +49,8 @@ const dimensionConfig: Record<string, { label: string; icon: string }> = {
 const heroStyle = computed(() => ({ '--stats-accent': props.contextColor || 'var(--color-primary-element)' }))
 const inactiveCount = computed(() => data.value ? Math.max(0, data.value.totalLinks - data.value.activeLinks) : 0)
 const topRows = computed(() => data.value?.topLinks.map(link => ({ value: link.title || link.slug, clicks: link.clicks })) ?? [])
+const leastRows = computed(() => data.value?.leastUsedLinks.map(link => ({ value: link.title || link.slug, clicks: link.clicks })) ?? [])
+const newestRows = computed(() => data.value?.newestLinks.map(link => ({ value: link.title || link.slug, clicks: link.clicks })) ?? [])
 
 watch(() => props.filters, load, { deep: true })
 onMounted(load)
@@ -105,8 +108,16 @@ function selectPeriod(value: Period) { period.value = value; if (value !== 'cust
 					<div><dt>{{ t('shortlinks', 'Unique visitors') }}</dt><dd>{{ data.uniqueVisitors }}</dd></div>
 					<div><dt>{{ t('shortlinks', 'Clicks today') }}</dt><dd>{{ data.clicksToday }}</dd></div>
 				</dl>
+				<section class="trend-section">
+					<h3><NcIconSvgWrapper :path="mdiTrendingUp" :size="22" aria-hidden="true" />{{ t('shortlinks', 'Clicks over time') }}</h3>
+					<MiniLineChart :rows="data.timeSeries ?? []" :color="contextColor || undefined" />
+				</section>
 				<div class="stats-sections">
-					<StatsDimension :title="t('shortlinks', 'Most clicked links')" :icon="mdiLinkVariant" :rows="topRows" />
+					<div class="winner-grid">
+						<StatsDimension :title="t('shortlinks', 'Top performers')" :icon="mdiTrendingUp" :rows="topRows" />
+						<StatsDimension :title="t('shortlinks', 'Links needing attention')" :icon="mdiTrendingDown" :rows="leastRows" />
+						<StatsDimension :title="t('shortlinks', 'Newest links')" :icon="mdiNewBox" :rows="newestRows" />
+					</div>
 					<StatsDimension v-for="(rows, dimension) in data.dimensions"
 						:key="dimension"
 						:title="t('shortlinks', dimensionConfig[dimension]?.label || dimension)"
@@ -157,6 +168,13 @@ function selectPeriod(value: Period) { period.value = value; if (value !== 'cust
 .stats-summary dd { margin: 0; font-size: 1.7rem; font-weight: 700; }
 
 .stats-sections { display: grid; gap: calc(var(--default-grid-baseline) * 6); }
+
+.trend-section { display: grid; gap: calc(var(--default-grid-baseline) * 3); }
+
+.trend-section h3 { display: flex; align-items: center; gap: calc(var(--default-grid-baseline) * 2); margin: 0; }
+
+.winner-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(var(--default-grid-baseline) * 5); }
 @media (max-width: 900px) { .stats-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .winner-grid { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .stats-summary { grid-template-columns: 1fr; } }
 </style>

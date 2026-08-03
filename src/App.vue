@@ -11,7 +11,7 @@ import ContentToolbar from './components/ContentToolbar.vue'
 import LinkList from './components/LinkList.vue'
 import Navigation from './components/Navigation.vue'
 import { useShortlinks } from './stores/useShortlinks'
-import type { Folder, FolderIcon, ShortLink } from './types'
+import type { Folder, FolderIcon, LinkPage, LinkPageDraft, ShortLink, UserSettings } from './types'
 
 const store = useShortlinks()
 const AppSettingsDialog = defineAsyncComponent(() => import('./components/AppSettingsDialog.vue'))
@@ -21,10 +21,12 @@ const FolderDestinationDialog = defineAsyncComponent(() => import('./components/
 const FolderForm = defineAsyncComponent(() => import('./components/FolderForm.vue'))
 const LinkDetail = defineAsyncComponent(() => import('./components/LinkDetail.vue'))
 const LinkForm = defineAsyncComponent(() => import('./components/LinkForm.vue'))
+const PageEditor = defineAsyncComponent(() => import('./components/PageEditor.vue'))
+const PageList = defineAsyncComponent(() => import('./components/PageList.vue'))
 const StatsOverview = defineAsyncComponent(() => import('./components/StatsOverview.vue'))
 const TagForm = defineAsyncComponent(() => import('./components/TagForm.vue'))
 const capabilities = loadState<{ redirectStatuses: number[] }>('shortlinks', 'capabilities')
-const settings = reactive(loadState<{ titleFetch: boolean; allowedSchemes: string[]; shortUrlTemplate: string | null }>('shortlinks', 'settings'))
+const settings = reactive(loadState<{ titleFetch: boolean; useThumbnails: boolean; showQuickStart: boolean; allowedSchemes: string[]; shortUrlTemplate: string | null }>('shortlinks', 'settings'))
 const showCreate = ref(false)
 const showFolderCreate = ref(false)
 const showTagCreate = ref(false)
@@ -42,14 +44,74 @@ const destinationMode = ref<'move' | 'copy'>('move')
 const deletingFolder = ref<Folder | null>(null)
 const selectedLink = ref<ShortLink | null>(null)
 const editLink = ref<ShortLink | null>(null)
+const pages = ref<LinkPage[]>([])
+const pagesLoading = ref(false)
+const editingPage = ref<LinkPage | 'new' | null>(null)
+const createPageFolderId = ref<number | null>(null)
+const createPageTagIds = ref<number[]>([])
 const prefill = new URLSearchParams(location.search)
 const isDashboard = computed(() => store.state.system === 'dashboard' && store.state.folderId === null && store.state.tagIds.length === 0)
 const isStatistics = computed(() => store.state.system === 'statistics')
+const isPages = computed(() => store.state.system.startsWith('pages-'))
+const isTrash = computed(() => store.state.system === 'trash')
 
 onMounted(async () => {
 	await store.refresh()
+	if (isPages.value || isTrash.value) await loadPages()
 	if (prefill.get('url')) showCreate.value = true
 })
+
+async function loadPages() {
+	pagesLoading.value = true
+	try {
+		const filter = isTrash.value ? 'trash' : store.state.system.replace(/^pages-/, '')
+		pages.value = (await api.listPages(filter, 1, 100)).items
+	} catch (error) {
+		showError(error instanceof Error ? error.message : String(error))
+	} finally { pagesLoading.value = false }
+}
+
+async function selectNavigationView(value: { system: string; folderId: number | null }) {
+	if (value.system.startsWith('pages-')) {
+		store.state.system = value.system
+		store.state.folderId = null
+		store.state.tagIds = []
+		store.state.selected.clear()
+		editingPage.value = null
+		await loadPages()
+		return
+	}
+	await store.setFilter(value.system, value.folderId)
+	if (value.system === 'trash') await loadPages()
+}
+
+function openPageCreate(value?: { folderId?: number; tagId?: number }) {
+	createPageFolderId.value = value?.folderId ?? (store.state.folderId ?? null)
+	createPageTagIds.value = value?.tagId ? [value.tagId] : [...store.state.tagIds]
+	editingPage.value = 'new'
+}
+
+async function savePage(draft: LinkPageDraft) {
+	try {
+		if (editingPage.value && editingPage.value !== 'new') await api.updatePage(editingPage.value.id, draft)
+		else await api.createPage(draft)
+		showSuccess(t('shortlinks', editingPage.value === 'new' ? 'Page created' : 'Page saved'))
+		editingPage.value = null
+		createPageFolderId.value = null
+		createPageTagIds.value = []
+		if (!isPages.value) store.state.system = 'pages-all'
+		await loadPages()
+	} catch (error) { showError(error instanceof Error ? error.message : String(error)) }
+}
+
+async function deletePage(page: LinkPage, permanent: boolean) {
+	if (permanent && !window.confirm(t('shortlinks', 'Permanently delete “{title}”? This cannot be undone.', { title: page.title }))) return
+	try { await api.deletePage(page.id, permanent); showSuccess(t('shortlinks', permanent ? 'Page permanently deleted' : 'Page moved to trash')); await loadPages() } catch (error) { showError(error instanceof Error ? error.message : String(error)) }
+}
+
+async function restorePage(page: LinkPage) {
+	try { await api.restorePage(page.id); showSuccess(t('shortlinks', 'Page restored')); await loadPages() } catch (error) { showError(error instanceof Error ? error.message : String(error)) }
+}
 
 async function createFolder(value: { name: string; parentId: number | null; icon: FolderIcon }) {
 	try {
@@ -160,6 +222,13 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 	store.state.tagIds = []
 	store.state.selected.clear()
 }
+
+function applyUserSettings(value: UserSettings) {
+	settings.shortUrlTemplate = value.shortUrlTemplate
+	settings.titleFetch = value.metadataCollectionEnabled && value.metadataAutocomplete
+	settings.useThumbnails = value.useThumbnails
+	settings.showQuickStart = value.showQuickStart
+}
 </script>
 
 <template>
@@ -169,10 +238,11 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 			:active-system="store.state.system"
 			:active-folder-id="store.state.folderId"
 			:active-tag-ids="store.state.tagIds"
-			@filter="store.setFilter($event.system, $event.folderId)"
+			@filter="selectNavigationView($event)"
 			@tag="store.openTag($event)"
 			@create-link="openLinkCreate($event)"
 			@create-folder="openFolderCreate($event)"
+			@create-page="openPageCreate($event)"
 			@move-folder="openFolderDestination($event, 'move')"
 			@copy-folder="openFolderDestination($event, 'copy')"
 			@export-folder="exportFolder($event)"
@@ -180,7 +250,8 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 			@statistics="openStatisticsPage"
 			@settings="showSettings = true" />
 		<NcAppContent>
-			<ContentToolbar :folders="store.state.folders"
+			<ContentToolbar v-if="!editingPage && !isPages"
+				:folders="store.state.folders"
 				:tags="store.state.tags"
 				:system="store.state.system"
 				:folder-id="store.state.folderId"
@@ -192,6 +263,7 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 				:list-mode="!isDashboard && !isStatistics"
 				@create-link="openLinkCreate()"
 				@create-folder="openFolderCreate(store.state.folderId)"
+				@create-page="openPageCreate()"
 				@create-tag="showTagCreate = true"
 				@filter="store.setFilter($event.system, $event.folderId)"
 				@open-tag="store.openTag($event)"
@@ -199,7 +271,15 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 				@search="store.setSearchFilters($event)"
 				@overview="openViewStats"
 				@refresh="store.refresh()" />
-			<StatsOverview v-if="isStatistics"
+			<PageEditor v-if="editingPage"
+				:page="editingPage === 'new' ? undefined : editingPage"
+				:folders="store.state.folders"
+				:tags="store.state.tags"
+				:prefill-folder-id="createPageFolderId"
+				:prefill-tag-ids="createPageTagIds"
+				@close="editingPage = null; createPageFolderId = null; createPageTagIds = []"
+				@save="savePage" />
+			<StatsOverview v-else-if="isStatistics"
 				:key="`${statsPagePeriod}-${statsPageFrom}-${statsPageTo}`"
 				mode="page"
 				:context-title="t('shortlinks', 'All links')"
@@ -214,30 +294,58 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 				:allowed-schemes="settings.allowedSchemes"
 				:short-url-template="settings.shortUrlTemplate"
 				:allow-title-fetch="settings.titleFetch"
+				:use-thumbnails="settings.useThumbnails"
+				:show-quick-start="settings.showQuickStart"
 				:create="store.create"
-				@open="selectedLink = $event" />
-			<LinkList v-else
-				:links="store.state.links"
-				:folders="store.state.folders"
-				:tags="store.state.tags"
-				:loading="store.state.loading"
-				:error="store.state.error"
-				:selected="store.state.selected"
-				:has-more="store.state.hasMore"
-				:system="store.state.system"
-				:sort="store.state.sort"
-				:direction="store.state.direction"
-				@create="showCreate = true"
 				@open="selectedLink = $event"
-				@options="store.setListOptions($event)"
-				@toggle="store.toggleSelected($event)"
-				@select-all="store.setSelected($event)"
-				@refresh="store.refresh()"
-				@bulk="store.bulk($event)"
-				@more="store.loadMore()" />
+				@changed="store.refresh()"
+				@settings-saved="applyUserSettings" />
+			<PageList v-else-if="isPages"
+				:pages="pages"
+				:loading="pagesLoading"
+				@create="openPageCreate()"
+				@edit="editingPage = $event"
+				@delete="deletePage"
+				@restore="restorePage" />
+			<template v-else>
+				<PageList v-if="isTrash"
+					:pages="pages"
+					:loading="pagesLoading"
+					trash
+					@create="openPageCreate()"
+					@edit="editingPage = $event"
+					@delete="deletePage"
+					@restore="restorePage" />
+				<LinkList :links="store.state.links"
+					:folders="store.state.folders"
+					:tags="store.state.tags"
+					:loading="store.state.loading"
+					:error="store.state.error"
+					:selected="store.state.selected"
+					:has-more="store.state.hasMore"
+					:system="store.state.system"
+					:sort="store.state.sort"
+					:direction="store.state.direction"
+					:use-thumbnails="settings.useThumbnails"
+					@create="showCreate = true"
+					@open="selectedLink = $event"
+					@options="store.setListOptions($event)"
+					@toggle="store.toggleSelected($event)"
+					@select-all="store.setSelected($event)"
+					@refresh="store.refresh()"
+					@bulk="store.bulk($event)"
+					@more="store.loadMore()" />
+			</template>
 		</NcAppContent>
-		<NcAppSidebar v-if="selectedLink" :name="selectedLink.title || selectedLink.slug" @close="selectedLink = null">
-			<LinkDetail :link="selectedLink" @edit="editLink = $event" @changed="store.refresh(); selectedLink = null" />
+		<NcAppSidebar v-if="selectedLink"
+			:name="selectedLink.title || selectedLink.slug"
+			:background="selectedLink.mediaMime?.startsWith('video/') ? '' : (selectedLink.mediaUrl || selectedLink.thumbnailMediaUrl || '')"
+			:starred="selectedLink.favorite"
+			@close="selectedLink = null">
+			<LinkDetail :link="selectedLink"
+				:folders="store.state.folders"
+				@edit="editLink = $event"
+				@changed="store.refresh(); selectedLink = null" />
 		</NcAppSidebar>
 
 		<LinkForm v-if="showCreate"
@@ -272,7 +380,7 @@ function openStatisticsPage(value: { period: typeof statsPagePeriod.value; from?
 		<AppSettingsDialog v-model:open="showSettings"
 			:folders="store.state.folders"
 			:tags="store.state.tags"
-			@settings-saved="settings.shortUrlTemplate = $event"
+			@settings-saved="applyUserSettings"
 			@changed="store.refresh()" />
 		<FolderDestinationDialog v-if="destinationFolder"
 			:folder="destinationFolder"

@@ -1,0 +1,130 @@
+
+.link-form[data-v-7da293aa],
+.form-section[data-v-7da293aa] {
+	display: grid;
+	gap: calc(var(--default-grid-baseline) * 3);
+}
+.link-form[data-v-7da293aa] {
+	padding-block: calc(var(--default-grid-baseline) * 2);
+}
+.form-section--primary[data-v-7da293aa] {
+	padding: calc(var(--default-grid-baseline) * 4);
+	border: 1px solid var(--color-primary-element-light);
+	border-radius: var(--border-radius-large);
+	background: var(--color-primary-element-light-hover);
+}
+.section-heading[data-v-7da293aa] {
+	display: flex;
+	align-items: flex-start;
+	gap: calc(var(--default-grid-baseline) * 2);
+}
+.section-heading--plain[data-v-7da293aa] {
+	padding-block-start: var(--default-grid-baseline);
+}
+.section-heading h2[data-v-7da293aa],
+.section-heading p[data-v-7da293aa] {
+	margin: 0;
+}
+.section-heading p[data-v-7da293aa] {
+	margin-block-start: var(--default-grid-baseline);
+	color: var(--color-text-maxcontrast);
+}
+.link-form hr[data-v-7da293aa] {
+	inline-size: 100%;
+	margin: calc(var(--default-grid-baseline) * 2) 0;
+	border: 0;
+	border-block-start: 1px solid var(--color-border);
+}
+.alias-field-row[data-v-7da293aa] {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--default-grid-baseline);
+}
+.component-field[data-v-7da293aa] {
+	display: grid;
+	gap: var(--default-grid-baseline);
+}
+.component-field > label[data-v-7da293aa] {
+	font-weight: 600;
+}
+.alias-actions[data-v-7da293aa],
+.inline-create[data-v-7da293aa] {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: calc(var(--default-grid-baseline) * 2);
+}
+.short-url-preview[data-v-7da293aa] {
+	margin: 0;
+	padding: calc(var(--default-grid-baseline) * 2) calc(var(--default-grid-baseline) * 3);
+	border-radius: var(--border-radius);
+	background: var(--color-background-dark);
+	overflow-wrap: anywhere;
+}
+.short-url-preview span[data-v-7da293aa] {
+	color: var(--color-text-maxcontrast);
+}
+.short-url-preview strong[data-v-7da293aa] {
+	color: var(--color-primary-element);
+}
+.alias-popover[data-v-7da293aa] {
+	max-inline-size: 320px;
+	padding: calc(var(--default-grid-baseline) * 3);
+}
+.alias-popover ul[data-v-7da293aa] {
+	margin-block-end: 0;
+	padding-inline-start: calc(var(--default-grid-baseline) * 5);
+}
+.form-grid[data-v-7da293aa] {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: end;
+	gap: calc(var(--default-grid-baseline) * 3);
+}
+.select-field[data-v-7da293aa],
+.native-field[data-v-7da293aa] {
+	display: grid;
+	gap: var(--default-grid-baseline);
+	font-weight: 600;
+}
+.select-field select[data-v-7da293aa],
+.native-field input[data-v-7da293aa] {
+	inline-size: 100%;
+	min-block-size: 44px;
+	margin: 0;
+	padding-inline: calc(var(--default-grid-baseline) * 2);
+	border: 1px solid var(--color-border-maxcontrast);
+	border-radius: var(--border-radius);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-weight: normal;
+}
+.organization-grid[data-v-7da293aa] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--default-grid-baseline) * 4);
+}
+.organization-grid > section[data-v-7da293aa] { display: grid; align-content: start; gap: calc(var(--default-grid-baseline) * 2); min-inline-size: 0;
+}
+.organization-grid h3[data-v-7da293aa], .empty-list[data-v-7da293aa] { margin: 0;
+}
+.organization-list[data-v-7da293aa] { max-block-size: 310px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius-large);
+}
+.empty-list[data-v-7da293aa] { padding: calc(var(--default-grid-baseline) * 4); color: var(--color-text-maxcontrast); text-align: center;
+}
+.click-limit[data-v-7da293aa] {
+	display: grid;
+	max-inline-size: 320px;
+	gap: calc(var(--default-grid-baseline) * 2);
+}
+.warning[data-v-7da293aa] {
+	margin: 0;
+}
+@media (max-width: 900px) {
+.form-grid[data-v-7da293aa],
+	.alias-field-row[data-v-7da293aa],
+	.organization-grid[data-v-7da293aa] {
+		grid-template-columns: 1fr;
+}
+.form-section--primary[data-v-7da293aa] {
+		padding: calc(var(--default-grid-baseline) * 3);
+}
+}

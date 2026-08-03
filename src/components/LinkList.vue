@@ -21,7 +21,7 @@ import BulkTagDialog from './BulkTagDialog.vue'
 import CompactLinkCard from './CompactLinkCard.vue'
 import LinkThumbnail from './LinkThumbnail.vue'
 
-const props = defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string; sort: string; direction: 'ASC' | 'DESC' }>()
+const props = withDefaults(defineProps<{ links: ShortLink[]; folders: Folder[]; tags: Tag[]; loading: boolean; error: string; selected: Set<number>; hasMore: boolean; system: string; sort: string; direction: 'ASC' | 'DESC'; useThumbnails?: boolean }>(), { useThumbnails: true })
 const emit = defineEmits<{
 	create: []
 	open: [link: ShortLink]
@@ -195,10 +195,13 @@ async function exportSelection(format: 'csv' | 'json') {
 						</td>
 						<td>
 							<button class="table-link-identity" @click="emit('open', link)">
-								<LinkThumbnail size="small" :src="link.thumbnailUrl ? api.thumbnailUrl(link.id) : ''" alt="" /><span><strong>{{ link.title || link.slug }}</strong><small>{{ `.../${link.slug}` }}</small></span><NcIconSvgWrapper v-if="link.favorite"
-									:path="mdiStar"
-									:size="17"
-									aria-hidden="true" />
+								<LinkThumbnail v-if="useThumbnails"
+									size="small"
+									:src="link.thumbnailMediaUrl || (link.thumbnailUrl ? api.thumbnailUrl(link.id) : '')"
+									alt="" /><span><strong>{{ link.title || link.slug }}</strong><small>{{ `.../${link.slug}` }}</small></span><NcIconSvgWrapper v-if="link.favorite"
+										:path="mdiStar"
+										:size="17"
+										aria-hidden="true" />
 							</button>
 						</td>
 						<td>
@@ -260,6 +263,7 @@ async function exportSelection(format: 'csv' | 'json') {
 				:folder="folderFor(link)"
 				selectable
 				:selected="selected.has(link.id)"
+				:show-thumbnail="useThumbnails"
 				@open="emit('open', $event)"
 				@toggle="emit('toggle', $event)" />
 		</div>

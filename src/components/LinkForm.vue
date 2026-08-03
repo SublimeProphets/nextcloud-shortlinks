@@ -15,6 +15,7 @@ import { useAliasValidation } from '../composables/useAliasValidation'
 import { useLinkMetadataPreview } from '../composables/useLinkMetadataPreview'
 import type { AccessMode, Folder, LinkDraft, ShortLink, Tag } from '../types'
 import FolderTreeList from './FolderTreeList.vue'
+import LinkAppearanceFields from './LinkAppearanceFields.vue'
 import LinkPreviewEditor from './LinkPreviewEditor.vue'
 import TagList from './TagList.vue'
 
@@ -59,6 +60,9 @@ const draft = reactive<LinkDraft>({
 	startsAt: props.link?.startsAt ?? null,
 	expiresAt: props.link?.expiresAt ?? null,
 	clickLimit: props.link?.clickLimit ?? null,
+	thumbnailPath: props.link?.thumbnailPath ?? null,
+	mediaPath: props.link?.mediaPath ?? null,
+	color: props.link?.color ?? null,
 })
 const slug = computed({ get: () => draft.slug, set: value => { draft.slug = value } })
 const alias = useAliasValidation(slug, props.link?.slug)
@@ -92,6 +96,8 @@ const targetError = computed(() => {
 })
 const targetValid = computed(() => !targetError.value)
 const metadata = useLinkMetadataPreview(toRef(draft, 'targetUrl'), toRef(draft, 'title'), targetValid, computed(() => props.allowTitleFetch))
+const appearanceThumbnail = computed(() => draft.thumbnailPath && draft.thumbnailPath === props.link?.thumbnailPath ? props.link.thumbnailMediaUrl ?? '' : metadata.thumbnailSrc.value)
+const appearanceMedia = computed(() => draft.mediaPath && draft.mediaPath === props.link?.mediaPath ? props.link.mediaUrl ?? '' : '')
 const shortUrlParts = computed(() => {
 	const template = props.shortUrlTemplate || `${location.origin}/apps/shortlinks/r/{alias}`
 	const [before, ...after] = template.split('{alias}')
@@ -235,6 +241,24 @@ function submit() {
 				<p class="short-url-preview" aria-live="polite">
 					<span>{{ shortUrlParts.before }}</span><strong>{{ draft.slug || '…' }}</strong><span>{{ shortUrlParts.after }}</span>
 				</p>
+			</section>
+
+			<hr>
+
+			<section class="form-section" aria-labelledby="appearance-heading">
+				<div class="section-heading section-heading--plain">
+					<div>
+						<h2 id="appearance-heading">
+							{{ t('shortlinks', 'Appearance and media') }}
+						</h2><p>{{ t('shortlinks', 'Choose how this link appears in previews, cards, Pages, and the sidebar.') }}</p>
+					</div>
+				</div>
+				<LinkAppearanceFields v-model:thumbnail-path="draft.thumbnailPath"
+					v-model:media-path="draft.mediaPath"
+					v-model:color="draft.color"
+					:thumbnail-src="appearanceThumbnail"
+					:media-src="appearanceMedia"
+					:media-mime="link?.mediaMime" />
 			</section>
 
 			<hr>

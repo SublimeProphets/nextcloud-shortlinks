@@ -60,9 +60,21 @@ final class AppContractTest extends TestCase {
 		self::assertContains('GET /thumbnail/preview', $publicRouteKeys);
 		self::assertContains('GET /thumbnail/{id}', $publicRouteKeys);
 		self::assertContains('POST /settings/admin/thumbnails/refresh', $publicRouteKeys);
+		self::assertContains('GET /media/{id}/{kind}', $publicRouteKeys);
+		self::assertContains('GET /p/{slug}', $publicRouteKeys);
+		self::assertContains('POST /p/{slug}', $publicRouteKeys);
+		self::assertContains('GET /p/{slug}/files/{index}', $publicRouteKeys);
+		self::assertContains('GET /api/v1/pages', $routeKeys);
+		self::assertContains('GET /api/v1/pages/contacts', $routeKeys);
+		self::assertContains('POST /api/v1/pages', $routeKeys);
+		self::assertContains('PATCH /api/v1/pages/{id}', $routeKeys);
+		self::assertContains('GET /api/v1/links/{id}/clicks/export', $routeKeys);
 		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1101Date20260729220000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1300Date20260802120000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1500Date20260803090000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1600Date20260803120000.php');
+		self::assertFileExists($this->root . '/css/public-page.css');
 		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertNotFalse($migration);
 		self::assertStringContainsString("hasColumn('icon')", $migration);
@@ -73,6 +85,14 @@ final class AppContractTest extends TestCase {
 		self::assertNotFalse($thumbnailMigration);
 		self::assertStringContainsString("hasColumn('thumbnail_url')", $thumbnailMigration);
 		self::assertStringContainsString("hasColumn('thumbnail_refreshed_at')", $thumbnailMigration);
+		$pageMigration = file_get_contents($this->root . '/lib/Migration/Version1500Date20260803090000.php');
+		self::assertNotFalse($pageMigration);
+		self::assertStringContainsString("createTable('shortlinks_pages')", $pageMigration);
+		self::assertStringContainsString("'media_path'", $pageMigration);
+		$pageContentMigration = file_get_contents($this->root . '/lib/Migration/Version1600Date20260803120000.php');
+		self::assertNotFalse($pageContentMigration);
+		self::assertStringContainsString("'file_paths'", $pageContentMigration);
+		self::assertStringContainsString("'contacts_json'", $pageContentMigration);
 	}
 
 	public function testReleaseIgnoreRulesExcludeDevelopmentTrees(): void {

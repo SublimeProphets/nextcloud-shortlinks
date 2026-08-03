@@ -1,0 +1,12 @@
+const appName = "shortlinks";
+const appVersion = "1.2.2";
+const _export_sfc = (sfc, props) => {
+  const target = sfc.__vccOpts || sfc;
+  for (const [key, val] of props) {
+    target[key] = val;
+  }
+  return target;
+};
+export {
+  _export_sfc as _
+};

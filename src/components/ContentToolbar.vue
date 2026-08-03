@@ -56,6 +56,7 @@ const props = defineProps<{
 const emit = defineEmits<{
 	createFolder: []
 	createLink: []
+	createPage: []
 	createTag: []
 	filter: [value: { system: string; folderId: number | null }]
 	openTag: [id: number]
@@ -238,7 +239,10 @@ async function importFile(event: Event) {
 					<NcIconSvgWrapper :path="navigationOpen ? mdiMenuOpen : mdiMenu" />
 				</template>
 			</NcButton>
-			<CreateMenu @link="emit('createLink')" @folder="emit('createFolder')" @tag="emit('createTag')" />
+			<CreateMenu @link="emit('createLink')"
+				@page="emit('createPage')"
+				@folder="emit('createFolder')"
+				@tag="emit('createTag')" />
 			<NcBreadcrumbs root-icon="icon-link" :aria-label="t('shortlinks', 'Current view')">
 				<NcBreadcrumb :name="t('shortlinks', folderId !== null || tagIds.length ? 'All links' : activeSystem.label)" force-menu>
 					<NcActionButton v-for="item in systemItems"

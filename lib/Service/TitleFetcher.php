@@ -26,7 +26,7 @@ final class TitleFetcher {
 
 	/** @return array{title:string,imageUrl:?string} */
 	public function fetchMetadata(string $url): array {
-		if (!$this->settings->bool('title_fetch')) {
+		if (!$this->settings->bool('title_fetch') || !$this->settings->bool('metadata_collection')) {
 			throw new ValidationException('Automatic title fetching is disabled', ['targetUrl' => 'title_fetch_disabled']);
 		}
 		$document = $this->fetchDocument($url);
@@ -85,7 +85,7 @@ final class TitleFetcher {
 				'headers' => [
 					'Accept' => 'image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.9',
 					'Range' => 'bytes=0-' . (self::MAX_IMAGE_BYTES - 1),
-					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.3; +https://nextcloud.com)',
+					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.4; +https://nextcloud.com)',
 				],
 			]);
 			$status = $response->getStatusCode();
@@ -131,7 +131,7 @@ final class TitleFetcher {
 				'headers' => [
 					'Accept' => 'text/html,application/xhtml+xml;q=0.9',
 					'Range' => 'bytes=0-' . (self::MAX_BYTES - 1),
-					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.3; +https://nextcloud.com)',
+					'User-Agent' => 'Mozilla/5.0 (compatible; Nextcloud-Shortlinks/1.4; +https://nextcloud.com)',
 				],
 			]);
 			$status = $response->getStatusCode();

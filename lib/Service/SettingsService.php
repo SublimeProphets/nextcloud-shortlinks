@@ -20,16 +20,17 @@ final class SettingsService {
 		'alias_mode' => 'random', 'alias_length' => 7, 'alias_min_length' => 4,
 		'alias_collision_mode' => 'random', 'alias_suffix_length' => 2,
 		'allow_user_alias_settings' => true, 'allow_user_url_settings' => true,
-		'allow_duplicate_targets' => true, 'title_fetch' => false, 'stats_enabled' => true,
+		'allow_duplicate_targets' => true, 'title_fetch' => true, 'metadata_collection' => true, 'stats_enabled' => true,
 		'privacy_mode' => 'detailed', 'respect_dnt' => true, 'click_retention_days' => 90,
 		'aggregate_retention_days' => 365, 'audit_retention_days' => 180, 'trash_retention_days' => 30,
 		'referrer_mode' => 'domain', 'log_authenticated_users' => false, 'record_bots' => true,
 		'admin_manage_all' => false, 'legacy_api' => false, 'api_tokens' => false,
 		'user_deletion_mode' => 'retain', 'base_url' => '', 'link_url_mode' => 'simple',
 		'link_url_template' => '', 'link_url_pattern' => '', 'link_url_replacement' => '', 'geoip_path' => '',
+		'allow_import_suggestions' => true, 'suggestion_recipient' => 'shortlinks@thoeni.me',
 	];
 
-	private const BOOL_KEYS = ['enabled', 'public_creation', 'allow_user_alias_settings', 'allow_user_url_settings', 'allow_duplicate_targets', 'title_fetch', 'stats_enabled', 'respect_dnt', 'log_authenticated_users', 'record_bots', 'admin_manage_all', 'legacy_api', 'api_tokens'];
+	private const BOOL_KEYS = ['enabled', 'public_creation', 'allow_user_alias_settings', 'allow_user_url_settings', 'allow_duplicate_targets', 'title_fetch', 'metadata_collection', 'stats_enabled', 'respect_dnt', 'log_authenticated_users', 'record_bots', 'admin_manage_all', 'legacy_api', 'api_tokens', 'allow_import_suggestions'];
 	private const INT_KEYS = ['max_links_per_user', 'alias_length', 'alias_min_length', 'alias_suffix_length', 'click_retention_days', 'aggregate_retention_days', 'audit_retention_days', 'trash_retention_days'];
 	private const ARRAY_KEYS = ['allowed_schemes', 'reserved_aliases', 'domain_allowlist', 'domain_blocklist', 'creation_groups', 'public_creation_groups', 'redirect_statuses'];
 
@@ -173,6 +174,9 @@ final class SettingsService {
 		}
 		if ($candidate['user_deletion_mode'] !== 'retain') {
 			throw new ValidationException('Invalid account deletion mode', ['userDeletionMode' => 'invalid']);
+		}
+		if (filter_var((string)$candidate['suggestion_recipient'], FILTER_VALIDATE_EMAIL) === false || strlen((string)$candidate['suggestion_recipient']) > 254) {
+			throw new ValidationException('Enter a valid suggestion recipient email address', ['suggestion_recipient' => 'invalid']);
 		}
 		if ((bool)$candidate['public_creation'] && ((string)$candidate['public_owner_uid'] === '' || ($this->users !== null && $this->users->get((string)$candidate['public_owner_uid']) === null))) {
 			throw new ValidationException('Public creation requires an existing owner UID', ['publicOwnerUid' => 'invalid']);

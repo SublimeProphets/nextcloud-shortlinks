@@ -13,10 +13,11 @@ import { folderIconPath } from '../folderIcons'
 import type { Folder, ShortLink } from '../types'
 import LinkThumbnail from './LinkThumbnail.vue'
 
-const props = withDefaults(defineProps<{ link: ShortLink; folder?: Folder; selectable?: boolean; selected?: boolean }>(), {
+const props = withDefaults(defineProps<{ link: ShortLink; folder?: Folder; selectable?: boolean; selected?: boolean; showThumbnail?: boolean }>(), {
 	folder: undefined,
 	selectable: false,
 	selected: false,
+	showThumbnail: true,
 })
 const emit = defineEmits<{ open: [link: ShortLink]; toggle: [id: number] }>()
 const createdRelative = computed(() => relativeTime(props.link.createdAt))
@@ -55,7 +56,9 @@ async function copyQr() {
 </script>
 
 <template>
-	<article class="compact-link-card" :class="{ 'is-selected': selected, 'is-selectable': selectable }">
+	<article class="compact-link-card"
+		:class="{ 'is-selected': selected, 'is-selectable': selectable, 'has-media': Boolean(link.mediaUrl) }"
+		:style="{ '--link-accent': link.color || 'var(--color-primary-element)' }">
 		<input v-if="selectable"
 			type="checkbox"
 			class="compact-link-card__checkbox"
@@ -69,12 +72,25 @@ async function copyQr() {
 			:path="mdiStar"
 			:size="20"
 			:aria-label="t('shortlinks', 'Favorite')" />
+		<div v-if="link.mediaUrl" class="compact-link-card__media" aria-hidden="true">
+			<video v-if="link.mediaMime?.startsWith('video/')"
+				:src="link.mediaUrl"
+				muted
+				loop
+				autoplay
+				playsinline
+				preload="metadata" />
+			<img v-else :src="link.mediaUrl" alt="">
+		</div>
 
 		<button type="button"
 			class="compact-link-card__main"
 			:aria-label="t('shortlinks', 'Open details for {title}', { title: link.title || link.slug })"
 			@click="emit('open', link)">
-			<LinkThumbnail size="normal" :src="link.thumbnailUrl ? api.thumbnailUrl(link.id) : ''" :alt="t('shortlinks', 'Share thumbnail for {title}', { title: link.title || link.slug })" />
+			<LinkThumbnail v-if="showThumbnail"
+				size="normal"
+				:src="link.thumbnailMediaUrl || (link.thumbnailUrl ? api.thumbnailUrl(link.id) : '')"
+				:alt="t('shortlinks', 'Share thumbnail for {title}', { title: link.title || link.slug })" />
 			<span class="compact-link-card__identity"><strong>{{ link.title || link.slug }}</strong><span class="compact-link-card__url" :title="link.shortUrl">{{ shortUrlLabel }}</span></span>
 		</button>
 
@@ -118,15 +134,21 @@ async function copyQr() {
 </template>
 
 <style scoped>
-.compact-link-card { position: relative; display: grid; min-block-size: 164px; gap: calc(var(--default-grid-baseline) * 3); min-inline-size: 0; padding: calc(var(--default-grid-baseline) * 3); border: 1px solid var(--color-border); border-radius: var(--border-radius-large); background: var(--color-main-background); transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.compact-link-card { --link-accent: var(--color-primary-element); position: relative; display: grid; min-block-size: 164px; gap: calc(var(--default-grid-baseline) * 3); min-inline-size: 0; padding: calc(var(--default-grid-baseline) * 3); overflow: hidden; border: 1px solid color-mix(in srgb, var(--link-accent) 34%, var(--color-border)); border-radius: var(--border-radius-large); background: color-mix(in srgb, var(--link-accent) 7%, var(--color-main-background)); transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
 
-.compact-link-card:hover, .compact-link-card:focus-within { border-color: var(--color-primary-element); background: var(--color-background-hover); box-shadow: 0 4px 16px var(--color-box-shadow); }
+.compact-link-card:hover, .compact-link-card:focus-within { border-color: var(--link-accent); background: color-mix(in srgb, var(--link-accent) 11%, var(--color-main-background)); box-shadow: 0 4px 16px var(--color-box-shadow); }
 
 .compact-link-card.is-selected { border-color: var(--color-primary-element); box-shadow: inset 0 0 0 1px var(--color-primary-element); }
 
 .compact-link-card__checkbox { position: absolute; z-index: 2; inset-block-start: 8px; inset-inline-start: 8px; inline-size: 20px; block-size: 20px; margin: 0; }
 
 .compact-link-card__favorite { position: absolute; z-index: 2; inset-block-start: 10px; inset-inline-end: 10px; color: var(--color-warning); }
+
+.compact-link-card__media { margin: calc(var(--default-grid-baseline) * -3) calc(var(--default-grid-baseline) * -3) 0; aspect-ratio: 16 / 5; overflow: hidden; background: var(--color-background-dark); }
+
+.compact-link-card__media img, .compact-link-card__media video { inline-size: 100%; block-size: 100%; object-fit: cover; }
+
+.compact-link-card.has-media .compact-link-card__favorite, .compact-link-card.has-media .compact-link-card__checkbox { color: #fff; filter: drop-shadow(0 1px 3px #000); }
 
 .compact-link-card__main { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; min-inline-size: 0; inline-size: 100%; gap: calc(var(--default-grid-baseline) * 3); margin: 0; padding: 0; border: 0; background: transparent; color: var(--color-main-text); font: inherit; text-align: start; cursor: pointer; }
 

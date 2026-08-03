@@ -99,6 +99,7 @@ final class StatsMapper {
 				'leastUsedLinks' => [],
 				'newestLinks' => [],
 				'dimensions' => array_fill_keys(['referrer', 'country', 'region', 'browser', 'os', 'device', 'authentication', 'bot'], []),
+				'timeSeries' => [],
 			];
 		}
 		$summary = $this->db->getQueryBuilder();
@@ -128,7 +129,30 @@ final class StatsMapper {
 			'leastUsedLinks' => $this->rankedLinksForIds($linkIds, 'ASC'),
 			'newestLinks' => $this->newestLinksForIds($linkIds),
 			'dimensions' => $dimensions,
+			'timeSeries' => $this->dailyForLinks($linkIds, $from, $to),
 		];
+	}
+
+	/** @param list<int> $linkIds @return list<array{day:string,clicks:int,uniqueVisitors:int}> */
+	private function dailyForLinks(array $linkIds, int $from, int $to): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('day')
+			->selectAlias($qb->func()->sum('clicks'), 'clicks')
+			->selectAlias($qb->func()->sum('unique_visitors'), 'unique_visitors')
+			->from('shortlinks_daily_stats')
+			->where($qb->expr()->in('link_id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->eq('dimension', $qb->createNamedParameter('total')))
+			->andWhere($qb->expr()->eq('dimension_value', $qb->createNamedParameter('all')))
+			->andWhere($qb->expr()->gte('day', $qb->createNamedParameter(gmdate('Y-m-d', max(0, $from)))))
+			->andWhere($qb->expr()->lte('day', $qb->createNamedParameter(gmdate('Y-m-d', max($from, $to)))))
+			->groupBy('day')->orderBy('day', 'ASC');
+		$result = $qb->executeQuery();
+		$rows = [];
+		while (($row = $result->fetch()) !== false) {
+			$rows[] = ['day' => (string)$row['day'], 'clicks' => (int)$row['clicks'], 'uniqueVisitors' => (int)$row['unique_visitors']];
+		}
+		$result->closeCursor();
+		return $rows;
 	}
 
 	/** @param list<int> $linkIds */
@@ -156,7 +180,10 @@ final class StatsMapper {
 			->where($qb->expr()->in('link_id', $qb->createNamedParameter($linkIds, IQueryBuilder::PARAM_INT_ARRAY)))
 			->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)));
-		return (int)$qb->executeQuery()->fetchOne();
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+		return $count;
 	}
 
 	/** @param list<int> $linkIds @return list<array{value:string,clicks:int}> */
@@ -347,6 +374,15 @@ final class StatsMapper {
 		}
 		$result->closeCursor();
 		return $count;
+	}
+
+	public function countClicksForLink(int $linkId, int $from, int $to): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))->from('shortlinks_clicks')
+			->where($qb->expr()->eq('link_id', $qb->createNamedParameter($linkId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->gte('clicked_at', $qb->createNamedParameter(max(0, $from), IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lte('clicked_at', $qb->createNamedParameter(max($from, $to), IQueryBuilder::PARAM_INT)));
+		return (int)$qb->executeQuery()->fetchOne();
 	}
 
 	/** @return list<array<string,mixed>> */

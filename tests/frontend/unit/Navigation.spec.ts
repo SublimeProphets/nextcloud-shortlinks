@@ -7,7 +7,7 @@ const global = {
 	stubs: {
 		NcAppNavigation: { template: '<nav><slot/><slot name="footer"/></nav>' },
 		NcAppNavigationCaption: { props: ['name'], template: '<h2>{{name}}</h2>' },
-		NcAppNavigationItem: { props: ['name'], emits: ['click'], template: '<button @click="$emit(\'click\')">{{name}}</button>' },
+		NcAppNavigationItem: { props: ['name'], emits: ['click'], template: '<div><button @click="$emit(\'click\')">{{name}}</button><slot/></div>' },
 		NcIconSvgWrapper: true,
 	},
 }

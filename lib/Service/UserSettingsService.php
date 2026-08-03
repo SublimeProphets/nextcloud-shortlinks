@@ -17,7 +17,11 @@ final class UserSettingsService {
 		'urlTemplate' => '',
 		'urlPattern' => '',
 		'urlReplacement' => '',
+		'useThumbnails' => '1',
+		'metadataAutocomplete' => '1',
+		'showQuickStart' => '1',
 	];
+	private const BOOL_KEYS = ['useThumbnails', 'metadataAutocomplete', 'showQuickStart'];
 
 	public function __construct(
 		private readonly IAppConfig $config,
@@ -32,8 +36,13 @@ final class UserSettingsService {
 			$result[$key] = $this->config->getUserValue($uid, $this->storageKey($key), $default);
 		}
 		$result['suffixLength'] = (int)$result['suffixLength'];
+		foreach (self::BOOL_KEYS as $key) {
+			$result[$key] = $result[$key] === '1';
+		}
 		$result['allowAliasSettings'] = $this->globalSettings->bool('allow_user_alias_settings');
 		$result['allowUrlSettings'] = $this->globalSettings->bool('allow_user_url_settings');
+		$result['metadataCollectionEnabled'] = $this->globalSettings->bool('title_fetch') && $this->globalSettings->bool('metadata_collection');
+		$result['allowImportSuggestions'] = $this->globalSettings->bool('allow_import_suggestions');
 		$result['globalAliasMode'] = $this->globalSettings->string('alias_mode');
 		$result['globalUrlMode'] = $this->globalSettings->string('link_url_mode');
 		return $result;
@@ -48,6 +57,12 @@ final class UserSettingsService {
 		$current = $this->get($uid);
 		$candidate = array_replace(array_intersect_key($current, self::DEFAULTS), $values);
 		foreach (array_keys(self::DEFAULTS) as $key) {
+			if (in_array($key, self::BOOL_KEYS, true)) {
+				if (!is_bool($candidate[$key])) {
+					throw new ValidationException('Invalid user setting', [$key => 'invalid']);
+				}
+				continue;
+			}
 			if (!is_string($candidate[$key]) && !($key === 'suffixLength' && is_int($candidate[$key]))) {
 				throw new ValidationException('Invalid user setting', [$key => 'invalid']);
 			}
@@ -55,7 +70,7 @@ final class UserSettingsService {
 				$candidate[$key] = trim($candidate[$key]);
 			}
 		}
-		if (!in_array($candidate['aliasStrategy'], ['inherit', 'random', 'readable'], true)) {
+		if (!in_array($candidate['aliasStrategy'], ['inherit', 'shortest', 'random', 'readable'], true)) {
 			throw new ValidationException('Invalid alias strategy', ['aliasStrategy' => 'invalid']);
 		}
 		if (!in_array($candidate['collisionStrategy'], ['random', 'numbered'], true)) {
@@ -92,7 +107,8 @@ final class UserSettingsService {
 		}
 		$candidate['suffixLength'] = (string)$suffixLength;
 		foreach (array_keys(self::DEFAULTS) as $key) {
-			$this->config->setUserValue($uid, $this->storageKey($key), (string)$candidate[$key]);
+			$value = in_array($key, self::BOOL_KEYS, true) ? ($candidate[$key] ? '1' : '0') : (string)$candidate[$key];
+			$this->config->setUserValue($uid, $this->storageKey($key), $value);
 		}
 		return $this->get($uid);
 	}
@@ -110,6 +126,15 @@ final class UserSettingsService {
 			$suffixLength = (int)$user['suffixLength'];
 		}
 		return ['strategy' => $strategy, 'collisionStrategy' => $collisionStrategy, 'suffixLength' => $suffixLength];
+	}
+
+	public function usesThumbnails(string $uid): bool {
+		return (bool)$this->get($uid)['useThumbnails'];
+	}
+
+	public function allowsMetadataAutocomplete(string $uid): bool {
+		$settings = $this->get($uid);
+		return (bool)$settings['metadataCollectionEnabled'] && (bool)$settings['metadataAutocomplete'];
 	}
 
 	/** @return array{mode:string,baseUrl:string,template:string,pattern:string,replacement:string} */

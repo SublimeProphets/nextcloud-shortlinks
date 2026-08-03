@@ -5,10 +5,15 @@ import {
 	mdiChartBoxOutline,
 	mdiCogOutline,
 	mdiCursorDefaultClickOutline,
+	mdiEarth,
+	mdiFileDocumentPlusOutline,
+	mdiFileDocumentMultipleOutline,
+	mdiFileDocumentOutline,
 	mdiHistory,
 	mdiLinkOff,
 	mdiLinkVariant,
 	mdiStarOutline,
+	mdiShieldLockOutline,
 	mdiTagOutline,
 	mdiTrashCanOutline,
 	mdiTrendingUp,
@@ -16,6 +21,7 @@ import {
 } from '@mdi/js'
 import { t } from '@nextcloud/l10n'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcAppNavigationCaption from '@nextcloud/vue/components/NcAppNavigationCaption'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
@@ -30,6 +36,7 @@ const emit = defineEmits<{
 	settings: []
 	createLink: [folderId: number]
 	createFolder: [parentId: number]
+	createPage: [value?: { folderId?: number; tagId?: number }]
 	moveFolder: [folder: Folder]
 	copyFolder: [folder: Folder]
 	exportFolder: [folder: Folder]
@@ -37,7 +44,6 @@ const emit = defineEmits<{
 	statistics: [value: { period: '7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'; from?: string; to?: string }]
 }>()
 const systemItems = [
-	{ id: 'dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline },
 	{ id: 'all', label: 'All links', icon: mdiLinkVariant },
 	{ id: 'favorites', label: 'Favorites', icon: mdiStarOutline },
 	{ id: 'trending', label: 'Trending links', icon: mdiTrendingUp },
@@ -46,8 +52,16 @@ const systemItems = [
 	{ id: 'expired', label: 'Expired', icon: mdiCalendarRemoveOutline },
 	{ id: 'inactive', label: 'Inactive', icon: mdiLinkOff },
 ]
+const pageItems = [
+	{ id: 'pages-all', label: 'All pages', icon: mdiFileDocumentOutline },
+	{ id: 'pages-public', label: 'Public pages', icon: mdiEarth },
+	{ id: 'pages-protected', label: 'Protected pages', icon: mdiShieldLockOutline },
+	{ id: 'pages-inactive', label: 'Inactive pages', icon: mdiLinkOff },
+]
 const expandedIds = ref(new Set<number>())
-const statisticsOpen = ref(true)
+const shortlinksOpen = ref(false)
+const pagesOpen = ref(props.activeSystem.startsWith('pages-'))
+const statisticsOpen = ref(props.activeSystem === 'statistics')
 const activeStatisticsPeriod = ref<'7d' | '30d' | '90d' | 'thisYear' | 'lastYear' | 'all' | 'custom'>('30d')
 const customFrom = ref(new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10))
 const customTo = ref(new Date().toISOString().slice(0, 10))
@@ -91,42 +105,50 @@ function applyCustomStatistics() {
 <template>
 	<NcAppNavigation :aria-label="t('shortlinks', 'Shortlinks navigation')">
 		<ul class="navigation-section navigation-section--main">
-			<NcAppNavigationItem v-for="item in systemItems"
-				:key="item.id"
-				:name="t('shortlinks', item.label)"
-				:active="activeSystem === item.id && activeFolderId === null"
-				@click="emit('filter', { system: item.id, folderId: null })">
+			<NcAppNavigationItem :name="t('shortlinks', 'Dashboard')" :active="activeSystem === 'dashboard' && activeFolderId === null" @click="emit('filter', { system: 'dashboard', folderId: null })">
 				<template #icon>
-					<NcIconSvgWrapper :path="item.icon" />
+					<NcIconSvgWrapper :path="mdiViewDashboardOutline" />
 				</template>
 			</NcAppNavigationItem>
 
-			<NcAppNavigationCaption :name="t('shortlinks', 'Folders')" />
-			<FolderNavigationItem v-for="folder in rootFolders"
-				:key="folder.id"
-				:folder="folder"
-				:folders="folders"
-				:active-folder-id="activeFolderId"
-				:expanded-ids="expandedIds"
-				@select="emit('filter', { system: 'all', folderId: $event.id })"
-				@toggle="toggleFolder"
-				@create-link="emit('createLink', $event.id)"
-				@create-folder="emit('createFolder', $event.id)"
-				@move="emit('moveFolder', $event)"
-				@copy="emit('copyFolder', $event)"
-				@export="emit('exportFolder', $event)"
-				@delete="emit('deleteFolder', $event)" />
-
-			<NcAppNavigationCaption :name="t('shortlinks', 'Tags')" />
-			<NcAppNavigationItem v-for="tag in tags"
-				:key="tag.id"
-				:name="tag.name"
-				:counter-number="tag.count"
-				:active="activeTagIds.includes(tag.id)"
-				@click="emit('tag', tag.id)">
+			<NcAppNavigationItem :name="t('shortlinks', 'Short links')"
+				:active="systemItems.some(item => item.id === activeSystem) && activeFolderId === null"
+				allow-collapse
+				:open="shortlinksOpen"
+				@click="emit('filter', { system: 'all', folderId: null })"
+				@update:open="shortlinksOpen = $event">
 				<template #icon>
-					<span class="tag-navigation-icon" :style="{ color: tag.color || undefined }"><NcIconSvgWrapper :path="mdiTagOutline" /></span>
+					<NcIconSvgWrapper :path="mdiLinkVariant" />
 				</template>
+				<NcAppNavigationItem v-for="item in systemItems"
+					:key="item.id"
+					:name="t('shortlinks', item.label)"
+					:active="activeSystem === item.id && activeFolderId === null"
+					@click="emit('filter', { system: item.id, folderId: null })">
+					<template #icon>
+						<NcIconSvgWrapper :path="item.icon" />
+					</template>
+				</NcAppNavigationItem>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem :name="t('shortlinks', 'Pages')"
+				:active="activeSystem.startsWith('pages-')"
+				allow-collapse
+				:open="pagesOpen"
+				@click="emit('filter', { system: 'pages-all', folderId: null })"
+				@update:open="pagesOpen = $event">
+				<template #icon>
+					<NcIconSvgWrapper :path="mdiFileDocumentMultipleOutline" />
+				</template>
+				<NcAppNavigationItem v-for="item in pageItems"
+					:key="item.id"
+					:name="t('shortlinks', item.label)"
+					:active="activeSystem === item.id"
+					@click="emit('filter', { system: item.id, folderId: null })">
+					<template #icon>
+						<NcIconSvgWrapper :path="item.icon" />
+					</template>
+				</NcAppNavigationItem>
 			</NcAppNavigationItem>
 
 			<NcAppNavigationItem :name="t('shortlinks', 'Statistics')"
@@ -154,6 +176,43 @@ function applyCustomStatistics() {
 						{{ t('shortlinks', 'Apply') }}
 					</button>
 				</li>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationCaption :name="t('shortlinks', 'Folders')" />
+			<FolderNavigationItem v-for="folder in rootFolders"
+				:key="folder.id"
+				:folder="folder"
+				:folders="folders"
+				:active-folder-id="activeFolderId"
+				:expanded-ids="expandedIds"
+				@select="emit('filter', { system: 'all', folderId: $event.id })"
+				@toggle="toggleFolder"
+				@create-link="emit('createLink', $event.id)"
+				@create-folder="emit('createFolder', $event.id)"
+				@create-page="emit('createPage', { folderId: $event.id })"
+				@move="emit('moveFolder', $event)"
+				@copy="emit('copyFolder', $event)"
+				@export="emit('exportFolder', $event)"
+				@delete="emit('deleteFolder', $event)" />
+
+			<NcAppNavigationCaption :name="t('shortlinks', 'Tags')" />
+			<NcAppNavigationItem v-for="tag in tags"
+				:key="tag.id"
+				:name="tag.name"
+				:counter-number="tag.count"
+				:active="activeTagIds.includes(tag.id)"
+				:force-menu="true"
+				@click="emit('tag', tag.id)">
+				<template #icon>
+					<span class="tag-navigation-icon" :style="{ color: tag.color || undefined }"><NcIconSvgWrapper :path="mdiTagOutline" /></span>
+				</template>
+				<template #actions>
+					<NcActionButton :name="t('shortlinks', 'Create page from tag')" @click="emit('createPage', { tagId: tag.id })">
+						<template #icon>
+							<NcIconSvgWrapper :path="mdiFileDocumentPlusOutline" />
+						</template>
+					</NcActionButton>
+				</template>
 			</NcAppNavigationItem>
 		</ul>
 		<template #footer>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
-	mdiBookmarkPlusOutline, mdiDeleteOutline, mdiFolderMultipleOutline, mdiFolderRemoveOutline,
-	mdiIdentifier, mdiInformationOutline, mdiLinkVariant, mdiPlus, mdiShareVariantOutline, mdiTagMultipleOutline,
+	mdiBookmarkPlusOutline, mdiBugOutline, mdiCogOutline, mdiDeleteOutline, mdiExportVariant, mdiFolderMultipleOutline, mdiFolderRemoveOutline,
+	mdiIdentifier, mdiImport, mdiInformationOutline, mdiLinkVariant, mdiMessageTextOutline, mdiPlus, mdiShareVariantOutline, mdiSourceBranch, mdiTagMultipleOutline,
 } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { t } from '@nextcloud/l10n'
@@ -14,16 +14,19 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcFormBoxButton from '@nextcloud/vue/components/NcFormBoxButton'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import { api } from '../api/client'
-import type { Folder, FolderIcon, Tag } from '../types'
+import type { Folder, FolderIcon, Tag, UserSettings } from '../types'
 import AliasUrlSettings from './AliasUrlSettings.vue'
 import BookmarkletGuide from './BookmarkletGuide.vue'
+import DataTransferSettings from './DataTransferSettings.vue'
 import FolderForm from './FolderForm.vue'
 import FolderTreeList from './FolderTreeList.vue'
 import TagForm from './TagForm.vue'
 import TagList from './TagList.vue'
+import GeneralUserSettings from './GeneralUserSettings.vue'
+import SuggestionForm from './SuggestionForm.vue'
 
 const props = defineProps<{ open: boolean; folders: Folder[]; tags: Tag[] }>()
-const emit = defineEmits<{ 'update:open': [value: boolean]; changed: []; settingsSaved: [shortUrlTemplate: string] }>()
+const emit = defineEmits<{ 'update:open': [value: boolean]; changed: []; settingsSaved: [settings: UserSettings] }>()
 const editingFolder = ref<Folder | null>(null)
 const creatingFolder = ref(false)
 const deletingFolder = ref<Folder | null>(null)
@@ -31,6 +34,18 @@ const editingTag = ref<Tag | null>(null)
 const creatingTag = ref(false)
 const mergingTag = ref<Tag | null>(null)
 const mergeTargetId = ref<number | null>(null)
+const userEmail = ref('')
+const allowImportSuggestions = ref(true)
+const suggestionKind = ref<'import-compatibility' | 'bug' | 'development' | null>(null)
+
+watch(() => props.open, async value => {
+	if (!value) return
+	try {
+		const settings = await api.getUserSettings()
+		userEmail.value = settings.email
+		allowImportSuggestions.value = settings.allowImportSuggestions
+	} catch { /* Individual settings sections show actionable errors. */ }
+}, { immediate: true })
 
 const deleteLinkCount = computed(() => {
 	if (!deletingFolder.value) return 0
@@ -79,6 +94,15 @@ async function mergeTag() {
 		:name="t('shortlinks', 'Shortlinks settings')"
 		show-navigation
 		@update:open="emit('update:open', $event)">
+		<NcAppSettingsSection id="general"
+			:name="t('shortlinks', 'General')"
+			:description="t('shortlinks', 'Control previews, automatic metadata completion, and dashboard onboarding.')"
+			:order="5">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiCogOutline" />
+			</template>
+			<GeneralUserSettings @saved="emit('settingsSaved', $event)" />
+		</NcAppSettingsSection>
 		<NcAppSettingsSection id="bookmarklet"
 			:name="t('shortlinks', 'Bookmarklet')"
 			:description="t('shortlinks', 'Create short links directly from your browser toolbar.')"
@@ -95,7 +119,7 @@ async function mergeTag() {
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiIdentifier" />
 			</template>
-			<AliasUrlSettings section="alias" @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
+			<AliasUrlSettings section="alias" @saved="emit('settingsSaved', $event)" />
 		</NcAppSettingsSection>
 
 		<NcAppSettingsSection id="sharing-url"
@@ -105,7 +129,27 @@ async function mergeTag() {
 			<template #icon>
 				<NcIconSvgWrapper :path="mdiShareVariantOutline" />
 			</template>
-			<AliasUrlSettings section="url" @saved="emit('settingsSaved', $event.shortUrlTemplate)" />
+			<AliasUrlSettings section="url" @saved="emit('settingsSaved', $event)" />
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="import"
+			:name="t('shortlinks', 'Import')"
+			:description="t('shortlinks', 'Bring complete backups or links from Shortlinks and compatible services into your account.')"
+			:order="35">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiImport" />
+			</template>
+			<DataTransferSettings mode="import" :allow-import-suggestions="allowImportSuggestions" @request-compatibility="suggestionKind = 'import-compatibility'" />
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="export"
+			:name="t('shortlinks', 'Export')"
+			:description="t('shortlinks', 'Download a portable backup of your configuration and all links.')"
+			:order="36">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiExportVariant" />
+			</template>
+			<DataTransferSettings mode="export" />
 		</NcAppSettingsSection>
 
 		<NcAppSettingsSection id="folders"
@@ -164,8 +208,37 @@ async function mergeTag() {
 			<div class="about-section">
 				<NcIconSvgWrapper :path="mdiLinkVariant" :size="48" /><div><h3>{{ t('shortlinks', 'Shortlinks') }}</h3><p>{{ t('shortlinks', 'Create memorable redirects, organize them, and understand how they are used.') }}</p></div>
 			</div>
+			<div class="about-actions">
+				<NcButton @click="suggestionKind = 'bug'">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiBugOutline" />
+					</template>{{ t('shortlinks', 'Report bug') }}
+				</NcButton>
+				<NcButton @click="suggestionKind = 'development'">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiSourceBranch" />
+					</template>{{ t('shortlinks', 'Help with development') }}
+				</NcButton>
+			</div>
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="suggestions"
+			:name="t('shortlinks', 'Suggestions')"
+			:description="t('shortlinks', 'Share an idea, workflow need, or general request with the Shortlinks maintainers.')"
+			:order="50">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiMessageTextOutline" />
+			</template>
+			<SuggestionForm kind="general" :email="userEmail" />
 		</NcAppSettingsSection>
 	</NcAppSettingsDialog>
+
+	<NcDialog v-if="suggestionKind"
+		:name="suggestionKind === 'import-compatibility' ? t('shortlinks', 'Request import compatibility') : suggestionKind === 'bug' ? t('shortlinks', 'Report a bug') : t('shortlinks', 'Help with development')"
+		size="normal"
+		@closing="suggestionKind = null">
+		<SuggestionForm :kind="suggestionKind" :email="userEmail" @sent="suggestionKind = null" />
+	</NcDialog>
 
 	<FolderForm v-if="creatingFolder"
 		:folders="folders"
@@ -244,4 +317,6 @@ async function mergeTag() {
 .about-section h3, .about-section p { margin: 0; }
 
 .about-section p { margin-block-start: var(--default-grid-baseline); color: var(--color-text-maxcontrast); }
+
+.about-actions { display: flex; flex-wrap: wrap; gap: calc(var(--default-grid-baseline) * 2); margin-block-start: calc(var(--default-grid-baseline) * 4); }
 </style>

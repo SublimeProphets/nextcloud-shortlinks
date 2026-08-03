@@ -4,6 +4,48 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-03
+
+### Added
+
+- Added native multi-file selection from Nextcloud Files to Pages, with owner-bound validation, signed streamed delivery, image previews and explicit downloads.
+- Added privacy-conscious contact search through Nextcloud address books and contact cards on the live preview and published Page.
+
+## [1.5.1] - 2026-08-03
+
+### Changed
+
+- Completed the production UI polish for dual-series analytics, click-log badges, availability wording, QR copy actions and the requested navigation order.
+
+## [1.5.0] - 2026-08-03
+
+### Added
+
+- Added custom Nextcloud Files thumbnails, decorative image/video media and per-link accent colors across forms, cards, previews and the detail sidebar.
+- Added shareable Pages with folder/tag/manual sources, four responsive layouts, grouping, visible-field controls, theming, headers/footers and live preview.
+- Added private, public, password-protected and user/group-restricted Page access, availability windows, public rendering and a shared trash workflow.
+- Added aggregate time-series charts and CSV/JSON click-log exports.
+
+### Changed
+
+- Rebuilt the link sidebar around native grouped tabs, merged access and sharing, richer metadata, QR actions, mini analytics, full statistics, click cards and activity icons.
+- Reorganized the navigation into Dashboard, collapsible Short links, collapsible Pages, statistics, folders, tags and fixed footer actions.
+- Expanded backup/CSV compatibility to preserve thumbnails, local media references and link colors.
+
+## [1.4.0] - 2026-08-02
+
+### Added
+
+- Added complete account backups and automatic imports for Shortlinks JSON/CSV plus YOURLS Import/Export CSV/XML files.
+- Added rate-limited import-compatibility, suggestion, bug-report and development-help forms with anonymous submission support.
+- Added a six-step dashboard Quick Start guide for personal aliases, sharing URLs, folders, tags and the bookmarklet.
+
+### Changed
+
+- Added personal thumbnail, metadata autocomplete and Quick Start visibility settings with immediate dashboard updates.
+- Added a global metadata privacy switch, feedback recipient and import-suggestion visibility controls for administrators.
+- Expanded custom-domain guidance with ready-to-copy Apache and PHP forwarding examples.
+
 ## [1.3.0] - 2026-08-02
 
 ### Changed

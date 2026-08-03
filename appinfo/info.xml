@@ -5,7 +5,7 @@
 	<name>Shortlinks</name>
 	<summary>Create, share, protect, and analyse short links</summary>
 	<description><![CDATA[Shortlinks provides private link management, folders, tags, access controls, privacy-preserving analytics, import/export, a bookmarklet, QR codes, and a versioned OCS API.]]></description>
-	<version>1.3.0</version>
+	<version>1.6.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author>Shortlinks Contributors</author>
 	<namespace>Shortlinks</namespace>

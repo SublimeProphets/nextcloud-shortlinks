@@ -129,7 +129,8 @@ final class StatsService {
 			$previousClicks = array_sum(array_column($previousRows, 'clicks'));
 			$comparison = ['from' => $previousFrom, 'to' => $previousTo, 'clicks' => $previousClicks, 'changePercent' => $previousClicks === 0 ? null : round((($totalClicks - $previousClicks) / $previousClicks) * 100, 1)];
 		}
-		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'granularity' => $granularity, 'totalClicks' => $totalClicks, 'lifetimeClicks' => $link->getClickCount(), 'uniqueVisitors' => $this->stats->uniqueVisitorsForLink($id, $from, $to), 'timeSeries' => $timeSeries, 'dimensions' => $dimensions, 'comparison' => $comparison];
+		$now = time();
+		return ['linkId' => $id, 'from' => $from, 'to' => $to, 'granularity' => $granularity, 'totalClicks' => $totalClicks, 'lifetimeClicks' => $link->getClickCount(), 'uniqueVisitors' => $this->stats->uniqueVisitorsForLink($id, $from, $to), 'clicksToday' => $this->stats->countClicksForLink($id, $now - ($now % 86400), $now), 'timeSeries' => $timeSeries, 'dimensions' => $dimensions, 'comparison' => $comparison];
 	}
 
 	/** @return array{filename:string,mimeType:string,content:string} */
@@ -210,6 +211,37 @@ final class StatsService {
 			return $row;
 		}, array_slice($items, 0, $perPage));
 		return ['items' => $serialized, 'pagination' => ['page' => $page, 'perPage' => $perPage, 'hasMore' => $hasMore ? 1 : 0]];
+	}
+
+	/** @return array{filename:string,mimeType:string,content:string} */
+	public function exportClickLog(int $id, int $from, int $to, string $format, ?bool $bot = null): array {
+		$items = [];
+		for ($page = 1; $page <= 500; ++$page) {
+			$result = $this->clickLog($id, $from, $to, $page, 200, $bot);
+			array_push($items, ...$result['items']);
+			if ($result['pagination']['hasMore'] === 0) {
+				break;
+			}
+		}
+		if ($format === 'json') {
+			return ['filename' => 'shortlink-' . $id . '-click-log.json', 'mimeType' => 'application/json', 'content' => json_encode(['from' => $from, 'to' => $to, 'bot' => $bot, 'clicks' => $items], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)];
+		}
+		if ($format !== 'csv') {
+			throw new ValidationException('Click log export format must be csv or json', ['format' => 'invalid']);
+		}
+		$stream = fopen('php://temp', 'w+');
+		if ($stream === false) {
+			throw new \RuntimeException('Could not create click log export');
+		}
+		$fields = ['clickedAt', 'userUid', 'referrerType', 'referrerDomain', 'browser', 'browserVersion', 'os', 'osVersion', 'deviceType', 'country', 'region', 'isBot', 'outcome'];
+		fputcsv($stream, $fields);
+		foreach ($items as $item) {
+			fputcsv($stream, array_map(fn (string $field): string => $this->csvSafe(is_bool($item[$field] ?? null) ? (($item[$field] ?? false) ? '1' : '0') : (string)($item[$field] ?? '')), $fields));
+		}
+		rewind($stream);
+		$content = stream_get_contents($stream);
+		fclose($stream);
+		return ['filename' => 'shortlink-' . $id . '-click-log.csv', 'mimeType' => 'text/csv; charset=utf-8', 'content' => $content === false ? '' : $content];
 	}
 
 	public function aggregateDay(string $day): int {

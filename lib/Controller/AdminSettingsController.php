@@ -34,7 +34,7 @@ final class AdminSettingsController extends Controller {
 
 	public function refreshThumbnails(int $afterId = 0, int $limit = 5, bool $onlyMissing = false): DataResponse {
 		try {
-			if (!$this->settings->bool('title_fetch')) {
+			if (!$this->settings->bool('title_fetch') || !$this->settings->bool('metadata_collection')) {
 				throw new \InvalidArgumentException('Server-side metadata fetching must be enabled first');
 			}
 			$result = $this->thumbnails->refreshBatch($afterId, $limit, $onlyMissing);
