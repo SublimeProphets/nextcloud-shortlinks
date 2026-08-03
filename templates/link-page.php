@@ -31,6 +31,18 @@ $font = $fontStacks[(string)($theme['font'] ?? 'system')] ?? $fontStacks['system
 $baseSize = max(14, min(20, (int)($theme['baseSize'] ?? 16)));
 $scale = max(85, min(125, (int)($theme['scale'] ?? 100))) / 100;
 $headerAlignment = in_array($header['alignment'] ?? null, ['center', 'left'], true) ? (string)$header['alignment'] : 'center';
+$contentPositions = [];
+foreach ((array)($page['sectionOrder']['content'] ?? ['sources', 'links', 'files', 'contacts']) as $sectionId) {
+	$contentId = in_array($sectionId, ['sources', 'links'], true) ? 'links' : (in_array($sectionId, ['files', 'contacts'], true) ? (string)$sectionId : '');
+	if ($contentId !== '' && !array_key_exists($contentId, $contentPositions)) {
+		$contentPositions[$contentId] = count($contentPositions);
+	}
+}
+foreach (['links', 'files', 'contacts'] as $contentId) {
+	if (!array_key_exists($contentId, $contentPositions)) {
+		$contentPositions[$contentId] = count($contentPositions);
+	}
+}
 $formatSize = static function (int $bytes) use ($l): string {
 	if ($bytes < 1024) {
 		return $l->n('%n byte', '%n bytes', $bytes);
@@ -80,7 +92,7 @@ style('shortlinks', 'public-page');
 	</header>
 	<section class="link-page__groups" aria-label="<?php p($l->t('Page content')); ?>">
 		<?php if ($links === [] && $files === [] && $contacts === []): ?><p class="link-page__empty"><?php p($l->t('No content is currently available on this Page.')); ?></p><?php endif; ?>
-		<?php foreach ($groups as $group): ?><section class="link-page__group">
+		<?php foreach ($groups as $group): ?><section class="link-page__group" style="order:<?php p((string)$contentPositions['links']); ?>">
 			<?php if ($group['title'] !== ''): ?><h2><?php p((string)$group['title']); ?></h2><?php endif; ?>
 			<div class="link-page__items">
 		<?php foreach ($group['links'] as $link): ?>
@@ -105,7 +117,7 @@ style('shortlinks', 'public-page');
 		<?php endforeach; ?>
 			</div>
 		</section><?php endforeach; ?>
-		<?php if ($files !== []): ?><section class="link-page__group link-page__content-group">
+		<?php if ($files !== []): ?><section class="link-page__group link-page__content-group" style="order:<?php p((string)$contentPositions['files']); ?>">
 			<h2><?php p($l->t('Files')); ?></h2><div class="link-page__content-items">
 			<?php foreach ($files as $file): ?><article class="page-file-card">
 				<a class="page-file-card__main" href="<?php p((string)$file['inlineUrl']); ?>">
@@ -115,7 +127,7 @@ style('shortlinks', 'public-page');
 			</article><?php endforeach; ?>
 			</div>
 		</section><?php endif; ?>
-		<?php if ($contacts !== []): ?><section class="link-page__group link-page__content-group">
+		<?php if ($contacts !== []): ?><section class="link-page__group link-page__content-group" style="order:<?php p((string)$contentPositions['contacts']); ?>">
 			<h2><?php p($l->t('Contacts')); ?></h2><div class="link-page__content-items">
 			<?php foreach ($contacts as $contact): ?><article class="page-contact-card">
 				<span class="page-contact-card__avatar" aria-hidden="true"><?php p(mb_strtoupper(mb_substr((string)($contact['name'] ?? '?'), 0, 1))); ?></span><span class="page-contact-card__body"><strong><?php p((string)($contact['name'] ?? '')); ?></strong>

@@ -20,6 +20,33 @@ use PHPUnit\Framework\TestCase;
 final class UserSettingsServiceTest extends TestCase {
 	use SettingsFactory;
 
+	public function testPageEditorUsesSingleOpenSectionByDefaultAndCanBeChanged(): void {
+		$values = [];
+		$settings = new UserSettingsService($this->userConfig($values), $this->settings());
+
+		self::assertTrue($settings->get('alice')['pageEditorSingleSection']);
+		self::assertFalse($settings->save('alice', ['pageEditorSingleSection' => false])['pageEditorSingleSection']);
+	}
+
+	public function testPageAutosaveDefaultsToTenSecondsAndAcceptsSupportedDelays(): void {
+		$values = [];
+		$settings = new UserSettingsService($this->userConfig($values), $this->settings());
+
+		self::assertTrue($settings->get('alice')['pageAutosaveEnabled']);
+		self::assertSame(10, $settings->get('alice')['pageAutosaveDelay']);
+		$updated = $settings->save('alice', ['pageAutosaveEnabled' => false, 'pageAutosaveDelay' => 30]);
+		self::assertFalse($updated['pageAutosaveEnabled']);
+		self::assertSame(30, $updated['pageAutosaveDelay']);
+	}
+
+	public function testPageAutosaveRejectsUnsupportedDelays(): void {
+		$values = [];
+		$settings = new UserSettingsService($this->userConfig($values), $this->settings());
+
+		$this->expectException(ValidationException::class);
+		$settings->save('alice', ['pageAutosaveDelay' => 4]);
+	}
+
 	public function testReadableAliasesUseAConfiguredMinimalRandomSuffixAfterCollisions(): void {
 		$values = [];
 		$userSettings = new UserSettingsService($this->userConfig($values), $this->settings());

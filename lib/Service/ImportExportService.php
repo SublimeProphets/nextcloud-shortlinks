@@ -27,7 +27,7 @@ final class ImportExportService {
 		$linkData = json_decode($linkExport['content'], true, 32, JSON_THROW_ON_ERROR);
 		$preferences = array_intersect_key($this->userSettings->get($uid), array_flip([
 			'aliasStrategy', 'collisionStrategy', 'suffixLength', 'urlMode', 'baseUrl', 'urlTemplate',
-			'urlPattern', 'urlReplacement', 'useThumbnails', 'metadataAutocomplete', 'showQuickStart',
+			'urlPattern', 'urlReplacement', 'useThumbnails', 'metadataAutocomplete', 'showQuickStart', 'pageEditorSingleSection', 'pageAutosaveEnabled', 'pageAutosaveDelay',
 		]));
 		$folderPaths = $this->folderPaths();
 		$folders = array_map(static function (array $folder) use ($folderPaths): array {

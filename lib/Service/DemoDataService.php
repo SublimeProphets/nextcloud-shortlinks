@@ -73,7 +73,7 @@ final class DemoDataService {
 		foreach (['shortlinks_link_tags', 'shortlinks_permissions', 'shortlinks_clicks', 'shortlinks_daily_stats'] as $table) {
 			$this->deleteForIds($table, 'link_id', $linkIds);
 		}
-		foreach (['shortlinks_pages', 'shortlinks_audit', 'shortlinks_api_tokens', 'shortlinks_import_jobs', 'shortlinks_links', 'shortlinks_tags', 'shortlinks_folders'] as $table) {
+		foreach (['shortlinks_page_versions', 'shortlinks_pages', 'shortlinks_audit', 'shortlinks_api_tokens', 'shortlinks_import_jobs', 'shortlinks_links', 'shortlinks_tags', 'shortlinks_folders'] as $table) {
 			$this->deleteForOwner($table, $uid);
 		}
 	}

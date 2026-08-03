@@ -20,8 +20,11 @@ final class UserSettingsService {
 		'useThumbnails' => '1',
 		'metadataAutocomplete' => '1',
 		'showQuickStart' => '1',
+		'pageEditorSingleSection' => '1',
+		'pageAutosaveEnabled' => '1',
+		'pageAutosaveDelay' => '10',
 	];
-	private const BOOL_KEYS = ['useThumbnails', 'metadataAutocomplete', 'showQuickStart'];
+	private const BOOL_KEYS = ['useThumbnails', 'metadataAutocomplete', 'showQuickStart', 'pageEditorSingleSection', 'pageAutosaveEnabled'];
 
 	public function __construct(
 		private readonly IAppConfig $config,
@@ -36,6 +39,7 @@ final class UserSettingsService {
 			$result[$key] = $this->config->getUserValue($uid, $this->storageKey($key), $default);
 		}
 		$result['suffixLength'] = (int)$result['suffixLength'];
+		$result['pageAutosaveDelay'] = (int)$result['pageAutosaveDelay'];
 		foreach (self::BOOL_KEYS as $key) {
 			$result[$key] = $result[$key] === '1';
 		}
@@ -63,7 +67,7 @@ final class UserSettingsService {
 				}
 				continue;
 			}
-			if (!is_string($candidate[$key]) && !($key === 'suffixLength' && is_int($candidate[$key]))) {
+			if (!is_string($candidate[$key]) && !(in_array($key, ['suffixLength', 'pageAutosaveDelay'], true) && is_int($candidate[$key]))) {
 				throw new ValidationException('Invalid user setting', [$key => 'invalid']);
 			}
 			if (is_string($candidate[$key])) {
@@ -79,6 +83,10 @@ final class UserSettingsService {
 		$suffixLength = (int)$candidate['suffixLength'];
 		if ($suffixLength < 1 || $suffixLength > 12) {
 			throw new ValidationException('Alias suffix length must be between 1 and 12', ['suffixLength' => 'invalid']);
+		}
+		$autosaveDelay = (int)$candidate['pageAutosaveDelay'];
+		if (!in_array($autosaveDelay, [2, 5, 10, 30], true)) {
+			throw new ValidationException('Autosave delay must be 2, 5, 10, or 30 seconds', ['pageAutosaveDelay' => 'invalid']);
 		}
 		if (!$this->globalSettings->bool('allow_user_alias_settings') && $candidate['aliasStrategy'] !== 'inherit') {
 			throw new ValidationException('Personal alias settings are disabled by the administrator', ['aliasStrategy' => 'forbidden']);
@@ -106,6 +114,7 @@ final class UserSettingsService {
 			$candidate['urlReplacement'] = $validated['replacement'];
 		}
 		$candidate['suffixLength'] = (string)$suffixLength;
+		$candidate['pageAutosaveDelay'] = (string)$autosaveDelay;
 		foreach (array_keys(self::DEFAULTS) as $key) {
 			$value = in_array($key, self::BOOL_KEYS, true) ? ($candidate[$key] ? '1' : '0') : (string)$candidate[$key];
 			$this->config->setUserValue($uid, $this->storageKey($key), $value);

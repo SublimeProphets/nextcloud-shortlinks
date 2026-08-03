@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-	mdiBookmarkPlusOutline, mdiBugOutline, mdiCogOutline, mdiDeleteOutline, mdiExportVariant, mdiFolderMultipleOutline, mdiFolderRemoveOutline,
+	mdiBookmarkPlusOutline, mdiBookOpenPageVariantOutline, mdiBugOutline, mdiCogOutline, mdiDeleteOutline, mdiExportVariant, mdiFolderMultipleOutline, mdiFolderRemoveOutline,
 	mdiIdentifier, mdiImport, mdiInformationOutline, mdiLinkVariant, mdiMessageTextOutline, mdiPlus, mdiShareVariantOutline, mdiSourceBranch, mdiTagMultipleOutline,
 } from '@mdi/js'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -23,6 +23,7 @@ import FolderTreeList from './FolderTreeList.vue'
 import TagForm from './TagForm.vue'
 import TagList from './TagList.vue'
 import GeneralUserSettings from './GeneralUserSettings.vue'
+import PageUserSettings from './PageUserSettings.vue'
 import SuggestionForm from './SuggestionForm.vue'
 
 const props = defineProps<{ open: boolean; folders: Folder[]; tags: Tag[] }>()
@@ -130,6 +131,16 @@ async function mergeTag() {
 				<NcIconSvgWrapper :path="mdiShareVariantOutline" />
 			</template>
 			<AliasUrlSettings section="url" @saved="emit('settingsSaved', $event)" />
+		</NcAppSettingsSection>
+
+		<NcAppSettingsSection id="pages"
+			:name="t('shortlinks', 'Pages')"
+			:description="t('shortlinks', 'Choose how the Page editor behaves while you organize its sections.')"
+			:order="18">
+			<template #icon>
+				<NcIconSvgWrapper :path="mdiBookOpenPageVariantOutline" />
+			</template>
+			<PageUserSettings @saved="emit('settingsSaved', $event)" />
 		</NcAppSettingsSection>
 
 		<NcAppSettingsSection id="import"

@@ -45,6 +45,9 @@ final class PageController extends Controller {
 			'titleFetch' => $uid !== null && $this->userSettings->allowsMetadataAutocomplete($uid),
 			'useThumbnails' => (bool)($personal['useThumbnails'] ?? true),
 			'showQuickStart' => (bool)($personal['showQuickStart'] ?? true),
+			'pageEditorSingleSection' => (bool)($personal['pageEditorSingleSection'] ?? true),
+			'pageAutosaveEnabled' => (bool)($personal['pageAutosaveEnabled'] ?? true),
+			'pageAutosaveDelay' => (int)($personal['pageAutosaveDelay'] ?? 10),
 		]);
 		Util::addScript('shortlinks', 'shortlinks-main');
 		Util::addStyle('shortlinks', 'shortlinks-main');

@@ -18,6 +18,7 @@ final class LinkPageTest extends TestCase {
 		self::assertSame('[]', $page->getTagIds());
 		self::assertSame('[]', $page->getFilePaths());
 		self::assertSame('[]', $page->getContactsJson());
+		self::assertFalse($page->getAllowEmbedding());
 		self::assertTrue($page->getIsActive());
 		self::assertSame(1, $page->getEntityVersion());
 	}

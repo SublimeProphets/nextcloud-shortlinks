@@ -68,12 +68,17 @@ final class AppContractTest extends TestCase {
 		self::assertContains('GET /api/v1/pages/contacts', $routeKeys);
 		self::assertContains('POST /api/v1/pages', $routeKeys);
 		self::assertContains('PATCH /api/v1/pages/{id}', $routeKeys);
+		self::assertContains('GET /api/v1/pages/{id}/versions', $routeKeys);
+		self::assertContains('GET /api/v1/pages/{id}/versions/{versionNumber}', $routeKeys);
+		self::assertContains('POST /api/v1/pages/{id}/versions/{versionNumber}/restore', $routeKeys);
 		self::assertContains('GET /api/v1/links/{id}/clicks/export', $routeKeys);
 		self::assertFileExists($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1101Date20260729220000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1300Date20260802120000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1500Date20260803090000.php');
 		self::assertFileExists($this->root . '/lib/Migration/Version1600Date20260803120000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1800Date20260803190000.php');
+		self::assertFileExists($this->root . '/lib/Migration/Version1810Date20260803213000.php');
 		self::assertFileExists($this->root . '/css/public-page.css');
 		$migration = file_get_contents($this->root . '/lib/Migration/Version1100Date20260729143000.php');
 		self::assertNotFalse($migration);
@@ -93,6 +98,12 @@ final class AppContractTest extends TestCase {
 		self::assertNotFalse($pageContentMigration);
 		self::assertStringContainsString("'file_paths'", $pageContentMigration);
 		self::assertStringContainsString("'contacts_json'", $pageContentMigration);
+		$pageVersionMigration = file_get_contents($this->root . '/lib/Migration/Version1800Date20260803190000.php');
+		self::assertNotFalse($pageVersionMigration);
+		self::assertStringContainsString("createTable('shortlinks_page_versions')", $pageVersionMigration);
+		$embeddingMigration = file_get_contents($this->root . '/lib/Migration/Version1810Date20260803213000.php');
+		self::assertNotFalse($embeddingMigration);
+		self::assertStringContainsString("hasColumn('allow_embedding')", $embeddingMigration);
 	}
 
 	public function testReleaseIgnoreRulesExcludeDevelopmentTrees(): void {

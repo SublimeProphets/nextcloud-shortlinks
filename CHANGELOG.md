@@ -4,6 +4,38 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-08-03
+
+### Added
+
+- Added a native user and group autocomplete to restricted Pages.
+- Added explicit, default-off iFrame embedding for Pages with an enforced frame-ancestor policy.
+
+## [1.8.0] - 2026-08-03
+
+### Added
+
+- Added configurable Page autosave after 2, 5, 10, or 30 seconds without changes, enabled at 10 seconds by default.
+- Added persistent Page version history with author and timestamp metadata, historical previews, and explicit destructive restoration of earlier states.
+
+## [1.7.10] - 2026-08-03
+
+### Fixed
+
+- Indented nested folders in Page source selection while keeping folder icons compact and labels fluid against Nextcloud's list-icon defaults.
+
+## [1.7.7] - 2026-08-03
+
+### Added
+
+- Added collapsible, drag-and-drop orderable Page editor sections with a user preference for single-section mode.
+- Added a live preview status header and a direct public-preview action to the Page editor.
+
+### Fixed
+
+- Kept the Page editor at full application height when changing grouping and stabilized live header alignment updates.
+- Improved Page tab states and file previews while limiting file visuals to one third of their row.
+
 ## [1.7.6] - 2026-08-03
 
 ### Added

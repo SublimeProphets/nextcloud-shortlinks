@@ -54,7 +54,7 @@ final class UserSettingsApiController extends AbstractApiOCSController {
 	public function update(): DataResponse {
 		return $this->respond(function (): array {
 			$uid = $this->policy->currentUid();
-			$this->settings->save($uid, $this->payload(['aliasStrategy', 'collisionStrategy', 'suffixLength', 'urlMode', 'baseUrl', 'urlTemplate', 'urlPattern', 'urlReplacement', 'useThumbnails', 'metadataAutocomplete', 'showQuickStart']));
+			$this->settings->save($uid, $this->payload(['aliasStrategy', 'collisionStrategy', 'suffixLength', 'urlMode', 'baseUrl', 'urlTemplate', 'urlPattern', 'urlReplacement', 'useThumbnails', 'metadataAutocomplete', 'showQuickStart', 'pageEditorSingleSection', 'pageAutosaveEnabled', 'pageAutosaveDelay']));
 			return $this->response($uid);
 		});
 	}

@@ -12,7 +12,7 @@ use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
 final class LinkPagesApiController extends AbstractApiOCSController {
-	private const FIELDS = ['slug', 'title', 'lead', 'accessMode', 'password', 'startsAt', 'expiresAt', 'folderIds', 'tagIds', 'linkIds', 'filePaths', 'contacts', 'userIds', 'groupIds', 'layout', 'grouping', 'visibleFields', 'theme', 'header', 'footer', 'active', 'version'];
+	private const FIELDS = ['slug', 'title', 'lead', 'accessMode', 'password', 'allowEmbedding', 'startsAt', 'expiresAt', 'folderIds', 'tagIds', 'linkIds', 'filePaths', 'contacts', 'userIds', 'groupIds', 'layout', 'grouping', 'visibleFields', 'theme', 'header', 'footer', 'sectionOrder', 'active', 'version'];
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -41,6 +41,18 @@ final class LinkPagesApiController extends AbstractApiOCSController {
 	#[NoAdminRequired]
 	public function update(int $id): DataResponse {
 		return $this->respond(fn (): array => $this->pages->update($id, $this->payload(self::FIELDS)));
+	}
+	#[NoAdminRequired]
+	public function versions(int $id): DataResponse {
+		return $this->respond(fn (): array => $this->pages->versions($id));
+	}
+	#[NoAdminRequired]
+	public function version(int $id, int $versionNumber): DataResponse {
+		return $this->respond(fn (): array => $this->pages->version($id, $versionNumber));
+	}
+	#[NoAdminRequired]
+	public function restoreVersion(int $id, int $versionNumber): DataResponse {
+		return $this->respond(fn (): array => $this->pages->restoreVersion($id, $versionNumber, (int)($this->request->getParam('currentVersion', 0))));
 	}
 	#[NoAdminRequired]
 	public function destroy(int $id, bool $permanent = false): DataResponse {

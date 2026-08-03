@@ -7,6 +7,8 @@ namespace OCA\Shortlinks\Service;
 use OCA\Shortlinks\Db\FolderMapper;
 use OCA\Shortlinks\Db\LinkPage;
 use OCA\Shortlinks\Db\LinkPageMapper;
+use OCA\Shortlinks\Db\LinkPageVersion;
+use OCA\Shortlinks\Db\LinkPageVersionMapper;
 use OCA\Shortlinks\Db\ShortLink;
 use OCA\Shortlinks\Db\ShortLinkMapper;
 use OCA\Shortlinks\Db\TagMapper;
@@ -34,10 +36,16 @@ final class LinkPageService {
 	private const THEMES = ['nextcloud', 'neutral', 'modern', 'editorial'];
 	private const FONTS = ['system', 'inter', 'segoe', 'helvetica', 'arial', 'verdana', 'tahoma', 'trebuchet', 'roboto', 'open-sans', 'lato', 'montserrat', 'poppins', 'georgia', 'times', 'palatino', 'garamond', 'courier', 'consolas', 'monospace'];
 	private const HEADER_ALIGNMENTS = ['center', 'left'];
+	private const SECTION_ORDER = [
+		'general' => ['identity', 'access'],
+		'content' => ['sources', 'links', 'files', 'contacts'],
+		'design' => ['layout', 'theme', 'grouping', 'visible', 'customizing', 'header', 'footer'],
+	];
 	private const DEFAULT_ATTRIBUTION = 'Shared securely with Nextcloud Shortlinks';
 
 	public function __construct(
 		private readonly LinkPageMapper $pages,
+		private readonly LinkPageVersionMapper $pageVersions,
 		private readonly ShortLinkMapper $links,
 		private readonly FolderMapper $folders,
 		private readonly TagMapper $tags,
@@ -93,7 +101,9 @@ final class LinkPageService {
 		$page->setSlug($slug);
 		$page->setSlugHash(hash('sha256', $slug));
 		$this->apply($page, $data);
-		return $this->serialize($this->pages->insert($page));
+		$page = $this->pages->insert($page);
+		$this->recordVersion($page, $uid);
+		return $this->serialize($page);
 	}
 
 	private function initializeComposition(LinkPage $page): void {
@@ -113,6 +123,7 @@ final class LinkPageService {
 		if ($version !== $page->getEntityVersion()) {
 			throw new ConflictException('Page changed since it was loaded');
 		}
+		$this->ensureInitialVersion($page);
 		if (array_key_exists('slug', $data)) {
 			$slug = $this->slugs->normalize((string)$data['slug']);
 			if ($this->pages->slugExists($slug, $id)) {
@@ -124,12 +135,55 @@ final class LinkPageService {
 		$this->apply($page, $data);
 		$page->setUpdatedAt($this->time->getTime());
 		$page->setEntityVersion($version + 1);
-		return $this->serialize($this->pages->update($page));
+		$page = $this->pages->update($page);
+		$this->recordVersion($page, $this->policy->currentUid());
+		return $this->serialize($page);
+	}
+
+	/** @return list<array<string,mixed>> */
+	public function versions(int $id): array {
+		$page = $this->owned($id);
+		$this->ensureInitialVersion($page);
+		return array_map(fn (LinkPageVersion $version): array => $this->serializeVersion($version), $this->pageVersions->findForPage($id));
+	}
+
+	/** @return array{version:array<string,mixed>,page:array<string,mixed>} */
+	public function version(int $id, int $versionNumber): array {
+		$page = $this->owned($id);
+		$this->ensureInitialVersion($page);
+		try {
+			$version = $this->pageVersions->findVersion($id, $versionNumber);
+		} catch (DoesNotExistException) {
+			throw new NotFoundException('Page version not found');
+		}
+		return ['version' => $this->serializeVersion($version), 'page' => $this->publicSnapshot($version)];
+	}
+
+	/** @return array<string,mixed> */
+	public function restoreVersion(int $id, int $versionNumber, int $currentVersion): array {
+		$page = $this->owned($id);
+		if ($currentVersion !== $page->getEntityVersion()) {
+			throw new ConflictException('Page changed since it was loaded');
+		}
+		$this->ensureInitialVersion($page);
+		try {
+			$version = $this->pageVersions->findVersion($id, $versionNumber);
+		} catch (DoesNotExistException) {
+			throw new NotFoundException('Page version not found');
+		}
+		$snapshot = $this->decodeObject($version->getSnapshotJson());
+		$this->restoreSnapshot($page, $snapshot);
+		$page->setUpdatedAt($this->time->getTime());
+		$page->setEntityVersion($page->getEntityVersion() + 1);
+		$page = $this->pages->update($page);
+		$this->pageVersions->deleteAfter($id, $versionNumber);
+		return $this->serialize($page);
 	}
 
 	public function delete(int $id, bool $permanent): void {
 		$page = $this->owned($id);
 		if ($permanent || $page->getDeletedAt() !== null) {
+			$this->pageVersions->deleteForPage($id);
 			$this->pages->delete($page);
 			return;
 		}
@@ -165,6 +219,15 @@ final class LinkPageService {
 			'contacts' => $this->decodeContacts($page->getContactsJson()),
 			'owner' => $owner?->getDisplayName() ?? $page->getOwnerUid(),
 		];
+	}
+
+	/** Return the frame policy without exposing any other Page data. */
+	public function allowsEmbedding(string $slug): bool {
+		try {
+			return $this->pages->findBySlug($this->slugs->normalize($slug))->getAllowEmbedding();
+		} catch (DoesNotExistException) {
+			return false;
+		}
 	}
 
 	/** @return array{enabled:bool,items:list<array<string,mixed>>} */
@@ -222,6 +285,9 @@ final class LinkPageService {
 		if ($page->getAccessMode() !== 'password') {
 			$page->setPasswordHash(null);
 		}
+		if (array_key_exists('allowEmbedding', $data)) {
+			$page->setAllowEmbedding((bool)$data['allowEmbedding']);
+		}
 		foreach (['startsAt' => 'setStartsAt', 'expiresAt' => 'setExpiresAt'] as $key => $setter) {
 			if (array_key_exists($key, $data)) {
 				$page->$setter($data[$key] === null ? null : (int)$data[$key]);
@@ -268,8 +334,16 @@ final class LinkPageService {
 			$fields = array_values(array_intersect(self::FIELDS, array_map('strval', (array)$data['visibleFields'])));
 			$page->setVisibleFields(json_encode($fields, JSON_THROW_ON_ERROR));
 		}
-		if (array_key_exists('theme', $data)) {
-			$page->setThemeJson(json_encode($this->sanitizeTheme($data['theme']), JSON_THROW_ON_ERROR));
+		if (array_key_exists('theme', $data) || array_key_exists('sectionOrder', $data)) {
+			$existingTheme = $this->decodeObject($page->getThemeJson());
+			$theme = array_key_exists('theme', $data) && is_array($data['theme']) ? $data['theme'] : $existingTheme;
+			if (!array_key_exists('sectionOrder', $data) && array_key_exists('sectionOrder', $existingTheme)) {
+				$theme['sectionOrder'] = $existingTheme['sectionOrder'];
+			}
+			if (array_key_exists('sectionOrder', $data)) {
+				$theme['sectionOrder'] = $data['sectionOrder'];
+			}
+			$page->setThemeJson(json_encode($this->sanitizeTheme($theme), JSON_THROW_ON_ERROR));
 		}
 		if (array_key_exists('header', $data)) {
 			$page->setHeaderJson(json_encode($this->sanitizeHeader($data['header']), JSON_THROW_ON_ERROR));
@@ -364,6 +438,19 @@ final class LinkPageService {
 		$result['font'] = in_array($value['font'] ?? null, self::FONTS, true) ? (string)$value['font'] : $defaults['font'];
 		$result['baseSize'] = max(14, min(20, (int)($value['baseSize'] ?? $defaults['baseSize'])));
 		$result['scale'] = max(85, min(125, (int)($value['scale'] ?? $defaults['scale'])));
+		$result['sectionOrder'] = $this->sanitizeSectionOrder($value['sectionOrder'] ?? null);
+		return $result;
+	}
+
+	/** @return array{general:list<string>,content:list<string>,design:list<string>} */
+	private function sanitizeSectionOrder(mixed $value): array {
+		$value = is_array($value) ? $value : [];
+		$result = [];
+		foreach (self::SECTION_ORDER as $tab => $defaults) {
+			$supplied = isset($value[$tab]) && is_array($value[$tab]) ? array_map('strval', $value[$tab]) : [];
+			$ordered = array_values(array_unique(array_intersect($supplied, $defaults)));
+			$result[$tab] = [...$ordered, ...array_values(array_diff($defaults, $ordered))];
+		}
 		return $result;
 	}
 
@@ -407,16 +494,89 @@ final class LinkPageService {
 
 	/** @return array<string,mixed> */
 	private function serialize(LinkPage $page, bool $editable = true): array {
+		$theme = $this->decodeObject($page->getThemeJson());
+		$sectionOrder = $this->sanitizeSectionOrder($theme['sectionOrder'] ?? null);
+		unset($theme['sectionOrder']);
 		return [
 			'id' => $page->getId(), 'ownerUid' => $page->getOwnerUid(), 'slug' => $page->getSlug(), 'title' => $page->getTitle(), 'lead' => $page->getLead(),
-			'accessMode' => $page->getAccessMode(), 'passwordProtected' => $page->getPasswordHash() !== null, 'startsAt' => $page->getStartsAt(), 'expiresAt' => $page->getExpiresAt(),
+			'accessMode' => $page->getAccessMode(), 'passwordProtected' => $page->getPasswordHash() !== null, 'allowEmbedding' => $page->getAllowEmbedding(), 'startsAt' => $page->getStartsAt(), 'expiresAt' => $page->getExpiresAt(),
 			'folderIds' => $this->decodeIds($page->getFolderIds()), 'tagIds' => $this->decodeIds($page->getTagIds()), 'linkIds' => $this->decodeIds($page->getLinkIds()),
 			'filePaths' => $this->decodeStrings($page->getFilePaths()), 'contacts' => $this->decodeContacts($page->getContactsJson()),
 			'userIds' => $this->decodeStrings($page->getUserIds()), 'groupIds' => $this->decodeStrings($page->getGroupIds()), 'layout' => $page->getLayout(), 'grouping' => $page->getGrouping(),
-			'visibleFields' => $this->decodeStrings($page->getVisibleFields()), 'theme' => $this->decodeObject($page->getThemeJson()), 'header' => $this->decodeObject($page->getHeaderJson()), 'footer' => $this->decodeObject($page->getFooterJson()),
+			'visibleFields' => $this->decodeStrings($page->getVisibleFields()), 'theme' => $theme, 'header' => $this->decodeObject($page->getHeaderJson()), 'footer' => $this->decodeObject($page->getFooterJson()), 'sectionOrder' => $sectionOrder,
 			'active' => $page->getIsActive(), 'createdAt' => $page->getCreatedAt(), 'updatedAt' => $page->getUpdatedAt(), 'deletedAt' => $page->getDeletedAt(), 'version' => $page->getEntityVersion(),
 			'publicUrl' => $this->urls->linkToRouteAbsolute('shortlinks.public_pages.show', ['slug' => $page->getSlug()]), 'canEdit' => $editable,
 		];
+	}
+
+	private function ensureInitialVersion(LinkPage $page): void {
+		if ($this->pageVersions->maxVersion($page->getId()) === 0) {
+			$this->recordVersion($page, $page->getOwnerUid());
+		}
+	}
+
+	private function recordVersion(LinkPage $page, string $modifiedBy): void {
+		$version = new LinkPageVersion();
+		$version->setPageId($page->getId());
+		$version->setVersionNumber($this->pageVersions->maxVersion($page->getId()) + 1);
+		$version->setModifiedBy($modifiedBy);
+		$snapshot = $this->serialize($page);
+		$snapshot['_passwordHash'] = $page->getPasswordHash();
+		$version->setSnapshotJson(json_encode($snapshot, JSON_THROW_ON_ERROR));
+		$version->setCreatedAt($this->time->getTime());
+		$this->pageVersions->insert($version);
+	}
+
+	/** @return array<string,mixed> */
+	private function serializeVersion(LinkPageVersion $version): array {
+		$uid = $version->getModifiedBy();
+		return [
+			'version' => $version->getVersionNumber(),
+			'modifiedBy' => $uid,
+			'modifiedByDisplayName' => $this->users->get($uid)?->getDisplayName() ?? $uid,
+			'createdAt' => $version->getCreatedAt(),
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function publicSnapshot(LinkPageVersion $version): array {
+		$snapshot = $this->decodeObject($version->getSnapshotJson());
+		unset($snapshot['_passwordHash']);
+		return $snapshot;
+	}
+
+	/** @param array<string,mixed> $snapshot */
+	private function restoreSnapshot(LinkPage $page, array $snapshot): void {
+		$slug = $this->slugs->normalize((string)($snapshot['slug'] ?? ''));
+		if ($this->pages->slugExists($slug, $page->getId())) {
+			throw new ConflictException('Page address is already in use');
+		}
+		$page->setSlug($slug);
+		$page->setSlugHash(hash('sha256', $slug));
+		$page->setTitle(substr((string)($snapshot['title'] ?? ''), 0, 255));
+		$lead = trim((string)($snapshot['lead'] ?? ''));
+		$page->setLead($lead === '' ? null : substr($lead, 0, 5000));
+		$page->setAccessMode((string)($snapshot['accessMode'] ?? 'private'));
+		$page->setPasswordHash(isset($snapshot['_passwordHash']) && is_string($snapshot['_passwordHash']) ? $snapshot['_passwordHash'] : null);
+		$page->setAllowEmbedding((bool)($snapshot['allowEmbedding'] ?? false));
+		$page->setStartsAt(isset($snapshot['startsAt']) ? (int)$snapshot['startsAt'] : null);
+		$page->setExpiresAt(isset($snapshot['expiresAt']) ? (int)$snapshot['expiresAt'] : null);
+		$page->setFolderIds($this->encodeIds((array)($snapshot['folderIds'] ?? [])));
+		$page->setTagIds($this->encodeIds((array)($snapshot['tagIds'] ?? [])));
+		$page->setLinkIds($this->encodeIds((array)($snapshot['linkIds'] ?? [])));
+		$page->setFilePaths(json_encode(array_values((array)($snapshot['filePaths'] ?? [])), JSON_THROW_ON_ERROR));
+		$page->setContactsJson(json_encode(array_values((array)($snapshot['contacts'] ?? [])), JSON_THROW_ON_ERROR));
+		$page->setUserIds($this->encodeStrings((array)($snapshot['userIds'] ?? [])));
+		$page->setGroupIds($this->encodeStrings((array)($snapshot['groupIds'] ?? [])));
+		$page->setLayout((string)($snapshot['layout'] ?? 'cards'));
+		$page->setGrouping((string)($snapshot['grouping'] ?? 'none'));
+		$page->setVisibleFields(json_encode(array_values((array)($snapshot['visibleFields'] ?? [])), JSON_THROW_ON_ERROR));
+		$theme = is_array($snapshot['theme'] ?? null) ? $snapshot['theme'] : [];
+		$theme['sectionOrder'] = $snapshot['sectionOrder'] ?? null;
+		$page->setThemeJson(json_encode($this->sanitizeTheme($theme), JSON_THROW_ON_ERROR));
+		$page->setHeaderJson(json_encode($this->sanitizeHeader($snapshot['header'] ?? []), JSON_THROW_ON_ERROR));
+		$page->setFooterJson(json_encode($this->sanitizeFooter($snapshot['footer'] ?? []), JSON_THROW_ON_ERROR));
+		$page->setIsActive((bool)($snapshot['active'] ?? true));
 	}
 
 	private function owned(int $id): LinkPage {

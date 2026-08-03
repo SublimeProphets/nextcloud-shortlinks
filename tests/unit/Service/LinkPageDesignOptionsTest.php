@@ -29,6 +29,19 @@ final class LinkPageDesignOptionsTest extends TestCase {
 		self::assertSame('inter', $theme['font']);
 		self::assertSame(20, $theme['baseSize']);
 		self::assertSame(85, $theme['scale']);
+		self::assertSame(['identity', 'access'], $theme['sectionOrder']['general']);
+	}
+
+	public function testSectionOrderKeepsValidChoicesAndRestoresMissingSections(): void {
+		$order = $this->invoke('sanitizeSectionOrder', [[
+			'general' => ['access', 'unknown', 'access'],
+			'content' => ['files', 'contacts', 'links'],
+			'design' => ['footer', 'layout'],
+		]]);
+
+		self::assertSame(['access', 'identity'], $order['general']);
+		self::assertSame(['files', 'contacts', 'links', 'sources'], $order['content']);
+		self::assertSame(['footer', 'layout', 'theme', 'grouping', 'visible', 'customizing', 'header'], $order['design']);
 	}
 
 	public function testHeaderAndFooterOptionsReceiveSafeDefaults(): void {

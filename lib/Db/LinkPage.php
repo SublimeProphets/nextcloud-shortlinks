@@ -22,6 +22,8 @@ use OCP\DB\Types;
  * @method void setAccessMode(string $value)
  * @method ?string getPasswordHash()
  * @method void setPasswordHash(?string $value)
+ * @method bool getAllowEmbedding()
+ * @method void setAllowEmbedding(bool $value)
  * @method ?int getStartsAt()
  * @method void setStartsAt(?int $value)
  * @method ?int getExpiresAt()
@@ -71,6 +73,7 @@ final class LinkPage extends Entity {
 	protected ?string $lead = null;
 	protected string $accessMode = 'private';
 	protected ?string $passwordHash = null;
+	protected bool $allowEmbedding = false;
 	protected ?int $startsAt = null;
 	protected ?int $expiresAt = null;
 	protected string $folderIds = '[]';
@@ -94,6 +97,7 @@ final class LinkPage extends Entity {
 
 	public function __construct() {
 		$this->addType('isActive', Types::BOOLEAN);
+		$this->addType('allowEmbedding', Types::BOOLEAN);
 		foreach (['startsAt', 'expiresAt', 'createdAt', 'updatedAt', 'deletedAt'] as $field) {
 			$this->addType($field, Types::BIGINT);
 		}

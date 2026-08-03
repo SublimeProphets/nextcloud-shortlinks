@@ -11,7 +11,7 @@ import ContentToolbar from './components/ContentToolbar.vue'
 import LinkList from './components/LinkList.vue'
 import Navigation from './components/Navigation.vue'
 import { useShortlinks } from './stores/useShortlinks'
-import type { Folder, FolderIcon, LinkPage, LinkPageDraft, ShortLink, UserSettings } from './types'
+import type { Folder, FolderIcon, LinkPage, ShortLink, UserSettings } from './types'
 
 const store = useShortlinks()
 const AppSettingsDialog = defineAsyncComponent(() => import('./components/AppSettingsDialog.vue'))
@@ -26,7 +26,7 @@ const PageList = defineAsyncComponent(() => import('./components/PageList.vue'))
 const StatsOverview = defineAsyncComponent(() => import('./components/StatsOverview.vue'))
 const TagForm = defineAsyncComponent(() => import('./components/TagForm.vue'))
 const capabilities = loadState<{ redirectStatuses: number[] }>('shortlinks', 'capabilities')
-const settings = reactive(loadState<{ titleFetch: boolean; useThumbnails: boolean; showQuickStart: boolean; allowedSchemes: string[]; shortUrlTemplate: string | null }>('shortlinks', 'settings'))
+const settings = reactive(loadState<{ titleFetch: boolean; useThumbnails: boolean; showQuickStart: boolean; pageEditorSingleSection: boolean; pageAutosaveEnabled: boolean; pageAutosaveDelay: number; allowedSchemes: string[]; shortUrlTemplate: string | null }>('shortlinks', 'settings'))
 const showCreate = ref(false)
 const showFolderCreate = ref(false)
 const showTagCreate = ref(false)
@@ -91,17 +91,15 @@ function openPageCreate(value?: { folderId?: number; tagId?: number }) {
 	editingPage.value = 'new'
 }
 
-async function savePage(draft: LinkPageDraft) {
-	try {
-		if (editingPage.value && editingPage.value !== 'new') await api.updatePage(editingPage.value.id, draft)
-		else await api.createPage(draft)
-		showSuccess(t('shortlinks', editingPage.value === 'new' ? 'Page created' : 'Page saved'))
-		editingPage.value = null
+async function pageSaved(page: LinkPage, closeAfter: boolean) {
+	editingPage.value = closeAfter ? null : page
+	if (closeAfter) {
+		showSuccess(t('shortlinks', 'Page saved'))
 		createPageFolderId.value = null
 		createPageTagIds.value = []
 		if (!isPages.value) store.state.system = 'pages-all'
-		await loadPages()
-	} catch (error) { showError(error instanceof Error ? error.message : String(error)) }
+	}
+	await loadPages()
 }
 
 async function deletePage(page: LinkPage, permanent: boolean) {
@@ -228,6 +226,9 @@ function applyUserSettings(value: UserSettings) {
 	settings.titleFetch = value.metadataCollectionEnabled && value.metadataAutocomplete
 	settings.useThumbnails = value.useThumbnails
 	settings.showQuickStart = value.showQuickStart
+	settings.pageEditorSingleSection = value.pageEditorSingleSection
+	settings.pageAutosaveEnabled = value.pageAutosaveEnabled
+	settings.pageAutosaveDelay = value.pageAutosaveDelay
 }
 </script>
 
@@ -277,8 +278,11 @@ function applyUserSettings(value: UserSettings) {
 				:tags="store.state.tags"
 				:prefill-folder-id="createPageFolderId"
 				:prefill-tag-ids="createPageTagIds"
+				:single-section="settings.pageEditorSingleSection"
+				:autosave-enabled="settings.pageAutosaveEnabled"
+				:autosave-delay="settings.pageAutosaveDelay"
 				@close="editingPage = null; createPageFolderId = null; createPageTagIds = []"
-				@save="savePage" />
+				@saved="pageSaved" />
 			<StatsOverview v-else-if="isStatistics"
 				:key="`${statsPagePeriod}-${statsPageFrom}-${statsPageTo}`"
 				mode="page"

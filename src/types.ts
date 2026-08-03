@@ -48,6 +48,8 @@ export type PageLayout = 'cards' | 'spaced' | 'compact' | 'tiles'
 export type PageGrouping = 'none' | 'folder' | 'tag'
 export type PageThemePreset = 'nextcloud' | 'neutral' | 'modern' | 'editorial'
 export type PageHeaderAlignment = 'center' | 'left'
+export type PageEditorTab = 'general' | 'content' | 'design'
+export interface PageSectionOrder { general: string[]; content: string[]; design: string[] }
 export interface PageTheme {
 	preset: PageThemePreset; primary: string; background: string; surface: string; text: string
 	font: string; baseSize: number; scale: number
@@ -65,16 +67,16 @@ export interface PageFile {
 }
 export interface LinkPage {
 	id: number; ownerUid: string; slug: string; title: string; lead: string | null; accessMode: PageAccessMode
-	passwordProtected: boolean; startsAt: number | null; expiresAt: number | null; folderIds: number[]; tagIds: number[]; linkIds: number[]
+	passwordProtected: boolean; allowEmbedding: boolean; startsAt: number | null; expiresAt: number | null; folderIds: number[]; tagIds: number[]; linkIds: number[]
 	filePaths: string[]; contacts: PageContact[]
 	userIds: string[]; groupIds: string[]; layout: PageLayout; grouping: PageGrouping; visibleFields: string[]
-	theme: PageTheme; header: PageHeaderOptions; footer: PageFooterOptions; active: boolean
+	theme: PageTheme; header: PageHeaderOptions; footer: PageFooterOptions; sectionOrder: PageSectionOrder; active: boolean
 	createdAt: number; updatedAt: number; deletedAt: number | null; version: number; publicUrl: string; canEdit: boolean
 }
 export interface LinkPageDraft {
-	slug: string; title: string; lead: string; accessMode: PageAccessMode; password: string; startsAt: number | null; expiresAt: number | null
+	slug: string; title: string; lead: string; accessMode: PageAccessMode; password: string; allowEmbedding: boolean; startsAt: number | null; expiresAt: number | null
 	folderIds: number[]; tagIds: number[]; linkIds: number[]; filePaths: string[]; contacts: PageContact[]; userIds: string[]; groupIds: string[]; layout: PageLayout
-	grouping: PageGrouping; visibleFields: string[]; theme: PageTheme; header: PageHeaderOptions
+	grouping: PageGrouping; visibleFields: string[]; theme: PageTheme; header: PageHeaderOptions; sectionOrder: PageSectionOrder
 	footer: PageFooterOptions; active: boolean; version?: number
 }
 
@@ -97,7 +99,22 @@ export interface UserSettings {
 	useThumbnails: boolean
 	metadataAutocomplete: boolean
 	showQuickStart: boolean
+	pageEditorSingleSection: boolean
+	pageAutosaveEnabled: boolean
+	pageAutosaveDelay: 2 | 5 | 10 | 30
 	metadataCollectionEnabled: boolean
 	allowImportSuggestions: boolean
 	email: string
+}
+
+export interface LinkPageVersion {
+	version: number
+	modifiedBy: string
+	modifiedByDisplayName: string
+	createdAt: number
+}
+
+export interface LinkPageVersionDetail {
+	version: LinkPageVersion
+	page: LinkPage
 }

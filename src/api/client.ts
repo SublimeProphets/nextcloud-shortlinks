@@ -1,6 +1,6 @@
 import axios from '@nextcloud/axios'
 import { generateOcsUrl, generateUrl } from '@nextcloud/router'
-import type { ActivityEntry, ApiEnvelope, ClickEntry, Folder, LinkDraft, LinkPage, LinkPageDraft, LinkShare, LinkStats, PageContact, Pagination, Principal, ShortLink, StatsOverview, Tag, UserSettings } from '../types'
+import type { ActivityEntry, ApiEnvelope, ClickEntry, Folder, LinkDraft, LinkPage, LinkPageDraft, LinkPageVersion, LinkPageVersionDetail, LinkShare, LinkStats, PageContact, Pagination, Principal, ShortLink, StatsOverview, Tag, UserSettings } from '../types'
 
 interface OcsResponse<T> { ocs: { data: ApiEnvelope<T> } }
 
@@ -37,7 +37,7 @@ export const api = {
 	aliasAvailable: (slug: string) => request<{ slug: string; available: boolean }>('GET', `/aliases/${encodeURIComponent(slug)}`),
 	suggestAlias: (context: { title?: string; targetUrl?: string } = {}) => request<{ slug: string }>('POST', '/aliases/suggest', context),
 	getUserSettings: () => request<UserSettings>('GET', '/user-settings'),
-	updateUserSettings: (settings: Partial<Pick<UserSettings, 'aliasStrategy' | 'collisionStrategy' | 'suffixLength' | 'urlMode' | 'baseUrl' | 'urlTemplate' | 'urlPattern' | 'urlReplacement' | 'useThumbnails' | 'metadataAutocomplete' | 'showQuickStart'>>) => request<UserSettings>('PUT', '/user-settings', settings),
+	updateUserSettings: (settings: Partial<Pick<UserSettings, 'aliasStrategy' | 'collisionStrategy' | 'suffixLength' | 'urlMode' | 'baseUrl' | 'urlTemplate' | 'urlPattern' | 'urlReplacement' | 'useThumbnails' | 'metadataAutocomplete' | 'showQuickStart' | 'pageEditorSingleSection' | 'pageAutosaveEnabled' | 'pageAutosaveDelay'>>) => request<UserSettings>('PUT', '/user-settings', settings),
 	listFolders: () => request<Folder[]>('GET', '/folders'),
 	createFolder: (name: string, parentId: number | null = null, icon = 'folder') => request<Folder>('POST', '/folders', { name, parentId, icon }),
 	updateFolder: (id: number, data: Partial<Folder>) => request<Folder>('PATCH', `/folders/${id}`, data),
@@ -74,6 +74,9 @@ export const api = {
 	searchPageContacts: (search: string) => request<{ enabled: boolean; items: PageContact[] }>('GET', '/pages/contacts', undefined, { search }),
 	createPage: (draft: Partial<LinkPageDraft>) => request<LinkPage>('POST', '/pages', draft),
 	updatePage: (id: number, draft: Partial<LinkPageDraft>) => request<LinkPage>('PATCH', `/pages/${id}`, draft),
+	listPageVersions: (id: number) => request<LinkPageVersion[]>('GET', `/pages/${id}/versions`),
+	getPageVersion: (id: number, version: number) => request<LinkPageVersionDetail>('GET', `/pages/${id}/versions/${version}`),
+	restorePageVersion: (id: number, version: number, currentVersion: number) => request<LinkPage>('POST', `/pages/${id}/versions/${version}/restore`, { currentVersion }),
 	deletePage: (id: number, permanent = false) => request<Record<string, never>>('DELETE', `/pages/${id}`, undefined, { permanent }),
 	restorePage: (id: number) => request<LinkPage>('POST', `/pages/${id}/restore`),
 }

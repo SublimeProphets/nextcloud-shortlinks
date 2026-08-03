@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { mdiAccountOutline, mdiCursorDefaultClickOutline, mdiEmailOutline, mdiFileOutline, mdiFolderOutline, mdiLockOutline, mdiPhoneOutline, mdiTagOutline } from '@mdi/js'
 import { t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
+import { normalizePageSectionOrder, publicPageContentOrder } from '../pageSections'
 import { pageFontStack } from '../pageThemes'
 import type { Folder, LinkPageDraft, ShortLink } from '../types'
 
@@ -11,7 +13,9 @@ const selectedLinks = computed(() => props.links.filter(link => props.draft.link
 	|| (link.folderId !== null && props.draft.folderIds.includes(link.folderId))
 	|| link.tags.some(tag => props.draft.tagIds.includes(tag.id))))
 const footerLinks = computed(() => props.links.filter(link => props.draft.footer.linkIds?.includes(link.id)))
-const headerVisible = computed(() => ['brand', 'mark', 'title', 'lead', 'owner'].some(key => props.draft.header[key as keyof typeof props.draft.header] !== false))
+const headerVisible = computed(() => props.draft.header.brand !== false || props.draft.header.mark !== false || props.draft.header.title !== false || props.draft.header.lead !== false || props.draft.header.owner !== false)
+const contentOrder = computed(() => publicPageContentOrder(normalizePageSectionOrder(props.draft.sectionOrder)))
+const failedFilePreviews = ref(new Set<string>())
 const previewStyle = computed(() => ({
 	'--page-background': props.draft.theme.background || 'var(--color-main-background)',
 	'--page-text': props.draft.theme.text || 'var(--color-main-text)',
@@ -35,6 +39,8 @@ const groupedLinks = computed(() => {
 function field(name: string): boolean { return props.draft.visibleFields.includes(name) }
 function targetDomain(url: string): string { try { return new URL(url).hostname } catch { return url } }
 function fileName(path: string): string { return path.split('/').filter(Boolean).at(-1) || path }
+function filePreviewUrl(path: string): string { return `${generateUrl('/core/preview')}?${new URLSearchParams({ file: path, x: '256', y: '192', a: '1' })}` }
+function markFilePreviewFailed(path: string) { failedFilePreviews.value = new Set([...failedFilePreviews.value, path]) }
 </script>
 
 <template>
@@ -51,49 +57,56 @@ function fileName(path: string): string { return path.split('/').filter(Boolean)
 			</p><small v-if="draft.header.owner !== false">{{ t('shortlinks', 'Shared by you') }}</small>
 		</header>
 		<div class="page-preview__groups">
-			<section v-for="group in groupedLinks" :key="group.key">
-				<h2 v-if="group.title">
-					{{ group.title }}
-				</h2>
-				<div class="page-preview__links" :class="`layout--${draft.layout}`">
-					<component :is="interactive ? 'a' : 'div'"
-						v-for="link in group.links"
-						:key="link.id"
-						class="page-link"
-						:href="interactive ? link.shortUrl : undefined"
-						:style="{ '--item-accent': link.color || 'var(--page-primary)' }">
-						<div v-if="field('media') && link.mediaUrl" class="page-link__media">
-							<video v-if="link.mediaMime?.startsWith('video/')"
-								:src="link.mediaUrl"
-								muted
-								playsinline
-								preload="metadata" /><img v-else :src="link.mediaUrl" alt="">
+			<template v-for="contentType in contentOrder" :key="contentType">
+				<template v-if="contentType === 'links'">
+					<section v-for="group in groupedLinks" :key="group.key">
+						<h2 v-if="group.title">
+							{{ group.title }}
+						</h2>
+						<div class="page-preview__links" :class="`layout--${draft.layout}`">
+							<component :is="interactive ? 'a' : 'div'"
+								v-for="link in group.links"
+								:key="link.id"
+								class="page-link"
+								:href="interactive ? link.shortUrl : undefined"
+								:style="{ '--item-accent': link.color || 'var(--page-primary)' }">
+								<div v-if="field('media') && link.mediaUrl" class="page-link__media">
+									<video v-if="link.mediaMime?.startsWith('video/')"
+										:src="link.mediaUrl"
+										muted
+										playsinline
+										preload="metadata" /><img v-else :src="link.mediaUrl" alt="">
+								</div>
+								<img v-if="field('thumbnail') && link.thumbnailMediaUrl"
+									class="page-link__thumbnail"
+									:src="link.thumbnailMediaUrl"
+									alt="">
+								<div class="page-link__content">
+									<strong v-if="field('title')">{{ link.title || link.slug }}</strong><span v-if="field('description') && link.description">{{ link.description }}</span><small v-if="field('domain')">{{ targetDomain(link.targetUrl) }}</small><code v-if="field('shortUrl')">…/{{ link.slug }}</code><div class="page-link__meta">
+										<span v-if="field('clicks')"><NcIconSvgWrapper :path="mdiCursorDefaultClickOutline" :size="15" />{{ link.clickCount }}</span><span v-if="field('folder') && link.folderId"><NcIconSvgWrapper :path="mdiFolderOutline" :size="15" />{{ folders.find(folder => folder.id === link.folderId)?.name }}</span><span v-if="field('tags') && link.tags.length"><NcIconSvgWrapper :path="mdiTagOutline" :size="15" />{{ link.tags.map(tag => tag.name).join(', ') }}</span><span v-if="link.passwordProtected"><NcIconSvgWrapper :path="mdiLockOutline" :size="15" /></span>
+									</div>
+								</div>
+							</component>
 						</div>
-						<img v-if="field('thumbnail') && link.thumbnailMediaUrl"
-							class="page-link__thumbnail"
-							:src="link.thumbnailMediaUrl"
-							alt="">
-						<div class="page-link__content">
-							<strong v-if="field('title')">{{ link.title || link.slug }}</strong><span v-if="field('description') && link.description">{{ link.description }}</span><small v-if="field('domain')">{{ targetDomain(link.targetUrl) }}</small><code v-if="field('shortUrl')">…/{{ link.slug }}</code><div class="page-link__meta">
-								<span v-if="field('clicks')"><NcIconSvgWrapper :path="mdiCursorDefaultClickOutline" :size="15" />{{ link.clickCount }}</span><span v-if="field('folder') && link.folderId"><NcIconSvgWrapper :path="mdiFolderOutline" :size="15" />{{ folders.find(folder => folder.id === link.folderId)?.name }}</span><span v-if="field('tags') && link.tags.length"><NcIconSvgWrapper :path="mdiTagOutline" :size="15" />{{ link.tags.map(tag => tag.name).join(', ') }}</span><span v-if="link.passwordProtected"><NcIconSvgWrapper :path="mdiLockOutline" :size="15" /></span>
-							</div>
+					</section>
+				</template>
+				<section v-else-if="contentType === 'files' && draft.filePaths.length" class="page-preview__content-section">
+					<h2><NcIconSvgWrapper :path="mdiFileOutline" :size="22" />{{ t('shortlinks', 'Files') }}</h2><div class="page-preview__content-grid">
+						<div v-for="path in draft.filePaths" :key="path" class="page-content-card">
+							<span class="page-content-card__icon page-content-card__icon--file"><img v-if="!failedFilePreviews.has(path)"
+								:src="filePreviewUrl(path)"
+								alt=""
+								@error="markFilePreviewFailed(path)"><NcIconSvgWrapper v-else :path="mdiFileOutline" :size="28" /></span><span><strong>{{ fileName(path) }}</strong><small>{{ path }}</small></span>
 						</div>
-					</component>
-				</div>
-			</section>
-			<section v-if="draft.filePaths.length" class="page-preview__content-section">
-				<h2><NcIconSvgWrapper :path="mdiFileOutline" :size="22" />{{ t('shortlinks', 'Files') }}</h2><div class="page-preview__content-grid">
-					<div v-for="path in draft.filePaths" :key="path" class="page-content-card">
-						<span class="page-content-card__icon"><NcIconSvgWrapper :path="mdiFileOutline" :size="28" /></span><span><strong>{{ fileName(path) }}</strong><small>{{ path }}</small></span>
 					</div>
-				</div>
-			</section><section v-if="draft.contacts.length" class="page-preview__content-section">
-				<h2><NcIconSvgWrapper :path="mdiAccountOutline" :size="22" />{{ t('shortlinks', 'Contacts') }}</h2><div class="page-preview__content-grid">
-					<div v-for="contact in draft.contacts" :key="contact.key" class="page-content-card page-content-card--contact">
-						<span class="page-content-card__icon"><NcIconSvgWrapper :path="mdiAccountOutline" :size="28" /></span><span><strong>{{ contact.name }}</strong><small v-if="contact.organization">{{ contact.organization }}</small><small v-if="contact.emails[0]"><NcIconSvgWrapper :path="mdiEmailOutline" :size="14" />{{ contact.emails[0] }}</small><small v-if="contact.phones[0]"><NcIconSvgWrapper :path="mdiPhoneOutline" :size="14" />{{ contact.phones[0] }}</small></span>
+				</section><section v-else-if="contentType === 'contacts' && draft.contacts.length" class="page-preview__content-section">
+					<h2><NcIconSvgWrapper :path="mdiAccountOutline" :size="22" />{{ t('shortlinks', 'Contacts') }}</h2><div class="page-preview__content-grid">
+						<div v-for="contact in draft.contacts" :key="contact.key" class="page-content-card page-content-card--contact">
+							<span class="page-content-card__icon"><NcIconSvgWrapper :path="mdiAccountOutline" :size="28" /></span><span><strong>{{ contact.name }}</strong><small v-if="contact.organization">{{ contact.organization }}</small><small v-if="contact.emails[0]"><NcIconSvgWrapper :path="mdiEmailOutline" :size="14" />{{ contact.emails[0] }}</small><small v-if="contact.phones[0]"><NcIconSvgWrapper :path="mdiPhoneOutline" :size="14" />{{ contact.phones[0] }}</small></span>
+						</div>
 					</div>
-				</div>
-			</section><p v-if="!selectedLinks.length && !draft.filePaths.length && !draft.contacts.length" class="page-preview__empty">
+				</section>
+			</template><p v-if="!selectedLinks.length && !draft.filePaths.length && !draft.contacts.length" class="page-preview__empty">
 				{{ t('shortlinks', 'Select links, files, or contacts to fill this page.') }}
 			</p>
 		</div>
@@ -113,7 +126,7 @@ function fileName(path: string): string { return path.split('/').filter(Boolean)
 </template>
 
 <style scoped>
-.page-preview{--page-background:var(--color-main-background);--page-text:var(--color-main-text);--page-primary:var(--color-primary-element);--page-surface:var(--color-background-hover);--page-font:system-ui,sans-serif;--page-base-size:16px;--page-scale:1;display:grid;align-content:start;min-block-size:560px;padding:clamp(calc(20px * var(--page-scale)),5vw,calc(48px * var(--page-scale)));overflow:auto;border:1px solid color-mix(in srgb,var(--page-text) 18%,transparent);border-radius:var(--border-radius-large);background:var(--page-background);color:var(--page-text);font-family:var(--page-font);font-size:calc(var(--page-base-size) * var(--page-scale))}
+.page-preview{--page-background:var(--color-main-background);--page-text:var(--color-main-text);--page-primary:var(--color-primary-element);--page-surface:var(--color-background-hover);--page-font:system-ui,sans-serif;--page-base-size:16px;--page-scale:1;display:grid;align-content:start;block-size:100%;min-block-size:560px;padding:clamp(calc(20px * var(--page-scale)),5vw,calc(48px * var(--page-scale)));overflow:auto;border:1px solid color-mix(in srgb,var(--page-text) 18%,transparent);border-radius:var(--border-radius-large);background:var(--page-background);color:var(--page-text);font-family:var(--page-font);font-size:calc(var(--page-base-size) * var(--page-scale))}
 
 .page-preview__header{display:grid;justify-items:center;gap:8px;margin-block-end:32px;text-align:center}
 
@@ -145,7 +158,11 @@ function fileName(path: string): string { return path.split('/').filter(Boolean)
 
 .page-content-card{display:flex;align-items:center;gap:11px;min-inline-size:0;padding:13px;border:1px solid color-mix(in srgb,var(--page-primary) 28%,var(--color-border));border-radius:14px;background:color-mix(in srgb,var(--page-primary) 7%,var(--page-surface))}
 
-.page-content-card__icon{display:grid;place-items:center;flex:0 0 44px;inline-size:44px;block-size:44px;border-radius:12px;background:color-mix(in srgb,var(--page-primary) 16%,var(--page-surface));color:var(--page-primary)}
+.page-content-card__icon{display:grid;place-items:center;flex:0 0 44px;inline-size:44px;block-size:44px;overflow:hidden;border-radius:12px;background:color-mix(in srgb,var(--page-primary) 16%,var(--page-surface));color:var(--page-primary)}
+
+.page-content-card__icon--file{flex:0 1 64px;inline-size:min(64px,33%);max-inline-size:33%;block-size:auto;aspect-ratio:4/3}
+
+.page-content-card__icon img{inline-size:100%;block-size:100%;object-fit:cover}
 
 .page-content-card>span:last-child{display:grid;min-inline-size:0;gap:2px}
 
